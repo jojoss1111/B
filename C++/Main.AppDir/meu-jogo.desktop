@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name=Main
+Exec=AppRun %F
+Icon=meu-jogo
+Type=Application
+Categories=Game;
+Comment=Jogo feito com bird++
