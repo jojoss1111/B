@@ -1,0 +1,1156 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Editor de Formas 3D</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: 3 colunas (formas | viewport + codigo | propriedades); empilha abaixo de 960px */
+:root{
+  --bg:#12151a; --panel:#181c23; --panel-2:#1f242d; --line:#2b313c; --fg:#e6e9ee; --fg-dim:#97a1b1;
+  --accent:#7b96ff; --accent-fg:#0d1020; --sel:#ffb02e; --danger:#ff7a70;
+  --vp-bg:#0d1014; --grid:rgba(160,175,200,.13); --grid-major:rgba(160,175,200,.27);
+  --ax-x:#e0645c; --ax-y:#6cc070; --ax-z:#5b8def; --code-bg:#0f1217;
+  --tk-c:#7f8a9c; --tk-s:#b5d98a; --tk-n:#f2b46d; --tk-k:#c79bff; --tk-t:#7fd1e8;
+  --font-ui:'Instrument Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --font-display:'Bricolage Grotesque','Instrument Sans',system-ui,sans-serif;
+  --font-mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  color-scheme:dark;
+}
+@media (prefers-color-scheme: light){
+  :root:not([data-theme="dark"]){
+    --bg:#eceff4; --panel:#f8f9fb; --panel-2:#eaedf2; --line:#d2d8e1; --fg:#1b2029; --fg-dim:#586273;
+    --accent:#3452d9; --accent-fg:#ffffff; --sel:#d97a00; --danger:#c8372d;
+    --vp-bg:#dde3ec; --grid:rgba(40,55,80,.15); --grid-major:rgba(40,55,80,.3);
+    --ax-x:#c8433b; --ax-y:#3d9a48; --ax-z:#3a62d0; --code-bg:#f2f4f8;
+    --tk-c:#6b7686; --tk-s:#3f7d20; --tk-n:#a65a00; --tk-k:#7b3fc4; --tk-t:#0a7a99;
+    color-scheme:light;
+  }
+}
+:root[data-theme="light"]{
+  --bg:#eceff4; --panel:#f8f9fb; --panel-2:#eaedf2; --line:#d2d8e1; --fg:#1b2029; --fg-dim:#586273;
+  --accent:#3452d9; --accent-fg:#ffffff; --sel:#d97a00; --danger:#c8372d;
+  --vp-bg:#dde3ec; --grid:rgba(40,55,80,.15); --grid-major:rgba(40,55,80,.3);
+  --ax-x:#c8433b; --ax-y:#3d9a48; --ax-z:#3a62d0; --code-bg:#f2f4f8;
+  --tk-c:#6b7686; --tk-s:#3f7d20; --tk-n:#a65a00; --tk-k:#7b3fc4; --tk-t:#0a7a99;
+  color-scheme:light;
+}
+html{height:100%;box-sizing:border-box}
+body{height:100%;box-sizing:border-box;margin:0;padding-inline:16px;padding-block:12px;background:var(--bg);color:var(--fg);font:13px/1.4 var(--font-ui)}
+*,*::before,*::after{box-sizing:border-box}
+button,input,textarea,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+.dim{color:var(--fg-dim)}
+
+.app{height:100%;display:grid;gap:12px;
+  grid-template-columns:236px minmax(0,1fr) 296px;
+  grid-template-rows:auto minmax(0,1.55fr) minmax(0,1fr);
+  grid-template-areas:"top top top" "left vp right" "left code right"}
+.top{grid-area:top;display:flex;align-items:center;gap:12px;flex-wrap:wrap;min-width:0}
+.left{grid-area:left}.vp-wrap{grid-area:vp}.code{grid-area:code}.right{grid-area:right}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;min-height:0;min-width:0}
+.left,.right{overflow:auto;padding:12px}
+
+.brand{display:flex;align-items:center;gap:9px}
+.brand h1{font:700 17px/1 var(--font-display);margin:0;letter-spacing:-.01em}
+.brand svg{color:var(--accent)}
+.chip{display:inline-flex;align-items:center;gap:8px;padding:3px 4px 3px 10px;border:1px solid var(--line);border-radius:99px;background:var(--panel);color:var(--fg-dim);font-size:12px}
+.link{border:0;background:none;color:var(--accent);cursor:pointer;padding:2px 8px;border-radius:99px;font-weight:600}
+.link:hover{background:var(--panel-2)}
+.top-r{margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.inl{display:inline-flex;align-items:center;gap:6px;color:var(--fg-dim);font-size:12px}
+.inl input{width:64px}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--line);background:var(--panel-2);border-radius:6px;padding:5px 10px;cursor:pointer;line-height:1.2}
+.btn:hover{border-color:var(--fg-dim)}
+.btn[disabled]{opacity:.4;cursor:default}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-fg);font-weight:600}
+.btn.danger{color:var(--danger)}
+.btn.icon{padding:5px 7px}
+.btn[aria-pressed="true"]{border-color:var(--accent);color:var(--accent)}
+svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;flex:none}
+
+input[type=text],input[type=number],textarea{background:var(--panel-2);border:1px solid var(--line);border-radius:5px;padding:5px 7px;width:100%;min-width:0}
+input[type=number]{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+input[type=color]{width:40px;height:30px;padding:2px;background:var(--panel-2);border:1px solid var(--line);border-radius:5px;cursor:pointer}
+input[type=range]{width:100%;accent-color:var(--accent)}
+input[type=checkbox]{accent-color:var(--accent)}
+
+.sec{font:600 11px/1 var(--font-ui);text-transform:uppercase;letter-spacing:.08em;color:var(--fg-dim);margin:0 0 8px;display:flex;justify-content:space-between}
+.addgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-bottom:16px}
+.addbtn{display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 2px;font-size:11px;border:1px solid var(--line);background:var(--panel-2);border-radius:6px;cursor:pointer}
+.addbtn:hover{border-color:var(--accent);color:var(--accent)}
+.addbtn svg.i{width:22px;height:22px}
+.list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+.row{display:flex;align-items:center;gap:2px;border-radius:6px;border:1px solid transparent}
+.row.on{background:var(--panel-2);border-color:var(--accent)}
+.row.off .rowbtn{opacity:.5}
+.rowbtn{flex:1;min-width:0;display:flex;align-items:center;gap:8px;background:none;border:0;padding:6px 6px;cursor:pointer;text-align:left}
+.rowbtn .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.sw{width:12px;height:12px;border-radius:3px;border:1px solid rgba(128,128,128,.5);flex:none}
+.tiny{border:0;background:none;padding:5px;border-radius:5px;cursor:pointer;color:var(--fg-dim)}
+.tiny:hover{background:var(--panel-2);color:var(--fg)}
+.empty{color:var(--fg-dim);margin:4px 0}
+
+.tabs{display:flex;align-items:center;gap:2px;border-bottom:1px solid var(--line);padding:0 8px;flex:none}
+.tabs button.tab{border:0;background:none;padding:9px 10px;cursor:pointer;color:var(--fg-dim);border-bottom:2px solid transparent;margin-bottom:-1px;font-weight:500}
+.tabs button.tab[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--accent)}
+.tabs .sp{flex:1}
+.right .tabs{margin:-12px -12px 12px}
+
+.grp{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+.lbl{font:600 11px/1 var(--font-ui);text-transform:uppercase;letter-spacing:.07em;color:var(--fg-dim)}
+.f3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.f{display:flex;flex-direction:column;gap:3px;min-width:0}
+.f label,.f .scrub{font-size:11px;color:var(--fg-dim);cursor:ew-resize;user-select:none;touch-action:none}
+.seg{display:flex}
+.seg .btn{flex:1;border-radius:0}
+.seg .btn:first-child{border-radius:6px 0 0 6px}.seg .btn:last-child{border-radius:0 6px 6px 0}
+.hexv{font:12px var(--font-mono);color:var(--fg-dim)}
+.crow{display:flex;align-items:center;gap:10px}
+.brow{display:flex;gap:8px;margin-top:6px}
+.note{font-size:12px;color:var(--fg-dim);margin:0 0 12px}
+
+.vp-wrap{display:flex;flex-direction:column;overflow:hidden}
+.vp-bar{display:flex;gap:6px;align-items:center;padding:6px 8px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.vp-bar .sp{flex:1}
+.vp{position:relative;flex:1;min-height:0;overflow:hidden;background:var(--vp-bg)}
+.vp canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+#cvB{image-rendering:pixelated}
+#cvC{touch-action:none;outline-offset:-2px}
+.hint{position:absolute;left:10px;bottom:8px;right:10px;font-size:11px;color:var(--fg-dim);pointer-events:none;text-shadow:0 0 4px var(--vp-bg)}
+
+.code{display:flex;flex-direction:column;overflow:hidden}
+.pane{display:flex;flex-direction:column;flex:1;min-height:0}
+.opts{display:flex;flex-wrap:wrap;gap:8px 14px;padding:8px 12px;border-bottom:1px solid var(--line);align-items:center;font-size:12px}
+.opts .t{display:flex;align-items:center;gap:6px;color:var(--fg-dim)}
+.opts .t input[type=text]{width:92px;padding:3px 6px;font-family:var(--font-mono);font-size:12px}
+.opts label.c{display:flex;align-items:center;gap:5px;cursor:pointer}
+pre#out{margin:0;padding:12px;flex:1;min-height:0;overflow:auto;background:var(--code-bg);font:12px/1.55 var(--font-mono);tab-size:4}
+.tk-c{color:var(--tk-c)}.tk-s{color:var(--tk-s)}.tk-n{color:var(--tk-n)}.tk-k{color:var(--tk-k)}.tk-t{color:var(--tk-t)}
+#json-text{flex:1;min-height:120px;resize:none;border-radius:0;border-width:1px 0;font:12px/1.5 var(--font-mono)}
+.pad{padding:10px 12px}
+
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:8px 14px;border-radius:8px;font-weight:500;z-index:10;max-width:calc(100% - 32px)}
+
+@media (max-width:960px){
+  html,body{height:auto}
+  .app{height:auto;grid-template-columns:minmax(0,1fr);grid-template-rows:none;grid-template-areas:"top" "vp" "left" "right" "code"}
+  .vp-wrap{height:min(82vw,520px);min-height:340px}
+  .code{min-height:380px}
+  .left,.right{overflow:visible}
+  .hint{display:none}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <svg class="i" viewBox="0 0 24 24" width="22" height="22" style="stroke-width:1.8"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg>
+      <h1>Editor de Formas 3D</h1>
+    </div>
+    <div class="chip" id="exemplo" hidden><span>Cena de exemplo carregada</span><button class="link" id="btn-limpar" type="button">Limpar cena</button></div>
+    <div class="top-r">
+      <button class="btn icon" id="btn-undo" type="button" title="Desfazer (Ctrl+Z)" aria-label="Desfazer"><svg class="i" viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg></button>
+      <button class="btn icon" id="btn-redo" type="button" title="Refazer (Ctrl+Y)" aria-label="Refazer"><svg class="i" viewBox="0 0 24 24"><path d="M15 14l5-5-5-5"/><path d="M20 9H10a6 6 0 0 0 0 12h3"/></svg></button>
+      <label class="inl" for="snap">Grade <input id="snap" type="number" min="0" step="0.05" value="0.25"></label>
+      <span id="stats" class="dim mono"></span>
+    </div>
+  </header>
+
+  <aside class="left panel">
+    <h2 class="sec">Adicionar</h2>
+    <div class="addgrid" id="addgrid"></div>
+    <h2 class="sec"><span>Cena</span><span id="count" class="mono"></span></h2>
+    <ul class="list" id="list"></ul>
+  </aside>
+
+  <section class="vp-wrap panel">
+    <div class="vp-bar">
+      <button class="btn" id="v-frame" type="button" title="Enquadrar (F)">Enquadrar</button>
+      <button class="btn" id="v-front" type="button">Frente</button>
+      <button class="btn" id="v-side" type="button">Lado</button>
+      <button class="btn" id="v-top" type="button">Topo</button>
+      <span class="sp"></span>
+      <button class="btn icon" id="v-zout" type="button" aria-label="Afastar">&minus;</button>
+      <button class="btn icon" id="v-zin" type="button" aria-label="Aproximar">+</button>
+      <button class="btn" id="v-retro" type="button" aria-pressed="true" title="Resolução do preview">Retrô</button>
+    </div>
+    <div class="vp" id="vp">
+      <canvas id="cvA"></canvas><canvas id="cvB"></canvas><canvas id="cvC" tabindex="0" aria-label="Viewport 3D"></canvas>
+      <div class="hint">Arraste: orbitar · Botão direito ou Alt: mover vista · Roda: zoom · Arraste uma forma: mover · Shift: subir/descer · Setas e PgUp/PgDn: mover selecionada</div>
+    </div>
+  </section>
+
+  <section class="code panel">
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" id="tab-code" aria-selected="true" type="button">Código C++</button>
+      <button class="tab" role="tab" id="tab-json" aria-selected="false" type="button">Projeto</button>
+      <span class="sp"></span>
+      <button class="btn primary" id="btn-copy" type="button">Copiar código</button>
+    </div>
+    <div class="pane" id="pane-code">
+      <div class="opts">
+        <span class="t">Função <input type="text" id="o-fn" value="cenario" spellcheck="false" autocomplete="off"></span>
+        <span class="t">Prefixo <input type="text" id="o-prefix" value="f_" spellcheck="false" autocomplete="off"></span>
+        <span class="t">Câmera <input type="text" id="o-cam" value="cam" spellcheck="false" autocomplete="off"></span>
+        <label class="c"><input type="checkbox" id="o-inc"> #include</label>
+        <label class="c"><input type="checkbox" id="o-iniciar"> iniciar()</label>
+        <label class="c"><input type="checkbox" id="o-loop"> rodar() e desenhar()</label>
+        <label class="c"><input type="checkbox" id="o-colcam"> colisão da câmera</label>
+        <label class="c"><input type="checkbox" id="o-omit"> omitir valores padrão</label>
+      </div>
+      <pre id="out" tabindex="0"><code id="out-code"></code></pre>
+    </div>
+    <div class="pane" id="pane-json" hidden>
+      <p class="note pad" style="margin:0">Salve este texto para retomar a edição depois. Cole um projeto salvo aqui e carregue.</p>
+      <textarea id="json-text" spellcheck="false" aria-label="Projeto em JSON"></textarea>
+      <div class="brow pad" style="margin:0">
+        <button class="btn" id="btn-json-copy" type="button">Copiar projeto</button>
+        <button class="btn" id="btn-json-load" type="button">Carregar do texto</button>
+      </div>
+    </div>
+  </section>
+
+  <aside class="right panel">
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" id="tab-obj" aria-selected="true" type="button">Objeto</button>
+      <button class="tab" role="tab" id="tab-cena" aria-selected="false" type="button">Cena</button>
+    </div>
+    <div id="pane-obj"></div>
+    <div id="pane-cena" hidden>
+      <div class="grp">
+        <label class="lbl" for="s-amb">Luz ambiente <span id="s-amb-v" class="mono"></span></label>
+        <input type="range" id="s-amb" min="0" max="1" step="0.01">
+      </div>
+      <div class="grp">
+        <div class="lbl">Luz direcional</div>
+        <p class="note" style="margin:0">Vetor que aponta para a luz, como em luz_direcional().</p>
+        <div class="f3">
+          <div class="f"><label for="s-lx">X</label><input type="number" id="s-lx" step="0.05"></div>
+          <div class="f"><label for="s-ly">Y</label><input type="number" id="s-ly" step="0.05"></div>
+          <div class="f"><label for="s-lz">Z</label><input type="number" id="s-lz" step="0.05"></div>
+        </div>
+      </div>
+      <div class="grp">
+        <div class="lbl">Câmera inicial (FPS)</div>
+        <div class="f3">
+          <div class="f"><label for="s-cx">X</label><input type="number" id="s-cx" step="0.25"></div>
+          <div class="f"><label for="s-cy">Y (olhos)</label><input type="number" id="s-cy" step="0.25"></div>
+          <div class="f"><label for="s-cz">Z</label><input type="number" id="s-cz" step="0.25"></div>
+        </div>
+        <div class="f3">
+          <div class="f"><label for="s-cyaw">Yaw</label><input type="number" id="s-cyaw" step="5"></div>
+          <div class="f"><label for="s-cpitch">Pitch</label><input type="number" id="s-cpitch" step="5"></div>
+        </div>
+        <div class="brow"><button class="btn" id="s-vista" type="button">Usar a visão atual do editor</button></div>
+      </div>
+      <div class="grp">
+        <div class="lbl">Chão da câmera</div>
+        <div class="crow">
+          <label class="c" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="s-chao"> definir_chao</label>
+          <input type="number" id="s-chaoy" step="0.25" style="width:80px" aria-label="Altura do chão">
+        </div>
+      </div>
+      <p class="note">O preview usa as mesmas contas de luz da engine: ambiente, direcional por face e luzes pontuais por pixel.</p>
+    </div>
+  </aside>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+<script>
+(function(){
+'use strict';
+/* <pure> */
+const D2R = Math.PI / 180;
+const NEAR = 0.1, TANH = Math.tan(35 * D2R);
+
+const SHAPES = {
+  cubo:     { label: 'Cubo',     fields: [{k:'w',l:'Largura',min:0.01},{k:'h',l:'Altura',min:0.01},{k:'d',l:'Profund.',min:0.01}], def: {w:1,h:1,d:1} },
+  esfera:   { label: 'Esfera',   fields: [{k:'r',l:'Raio',min:0.01},{k:'aneis',l:'Anéis',int:1,min:2,max:32,step:1,sens:0.1},{k:'setores',l:'Setores',int:1,min:3,max:48,step:1,sens:0.1}], def: {r:0.5,aneis:8,setores:12} },
+  prisma:   { label: 'Prisma',   fields: [{k:'w',l:'Largura',min:0.01},{k:'h',l:'Altura',min:0.01},{k:'d',l:'Profund.',min:0.01}], def: {w:1,h:1,d:1} },
+  piramide: { label: 'Pirâmide', fields: [{k:'w',l:'Largura',min:0.01},{k:'h',l:'Altura',min:0.01},{k:'d',l:'Profund.',min:0.01}], def: {w:1,h:1,d:1} },
+  cilindro: { label: 'Cilindro', fields: [{k:'r',l:'Raio',min:0.01},{k:'h',l:'Altura',min:0.01},{k:'seg',l:'Segmentos',int:1,min:3,max:48,step:1,sens:0.1}], def: {r:0.5,h:1,seg:12} }
+};
+
+const rx = d => { const a = d * D2R, c = Math.cos(a), s = Math.sin(a); return [[1,0,0],[0,c,-s],[0,s,c]]; };
+const ry = d => { const a = d * D2R, c = Math.cos(a), s = Math.sin(a); return [[c,0,s],[0,1,0],[-s,0,c]]; };
+const rz = d => { const a = d * D2R, c = Math.cos(a), s = Math.sin(a); return [[c,-s,0],[s,c,0],[0,0,1]]; };
+const mm = (a, b) => a.map(r => [0,1,2].map(j => r[0]*b[0][j] + r[1]*b[1][j] + r[2]*b[2][j]));
+const mv = (m, v) => [m[0][0]*v[0]+m[0][1]*v[1]+m[0][2]*v[2], m[1][0]*v[0]+m[1][1]*v[1]+m[1][2]*v[2], m[2][0]*v[0]+m[2][1]*v[1]+m[2][2]*v[2]];
+const modelMat = s => mm(ry(s.ay), mm(rx(s.ax), rz(s.az)));
+const viewMat = (yaw, pitch) => mm(rx(pitch), ry(-yaw));
+
+function buildMesh(s) {
+  const V = [], F = [];
+  const q = (a, b, c, d) => { F.push([a,b,c], [a,c,d]); };
+  const t = s.type;
+  if (t === 'cubo') {
+    const hw = s.w/2, hh = s.h/2, hd = s.d/2;
+    for (let i = 0; i < 8; i++) V.push([(i&1)?hw:-hw, (i&2)?hh:-hh, (i&4)?hd:-hd]);
+    q(0,2,6,4); q(1,3,7,5); q(0,1,5,4); q(2,3,7,6); q(0,1,3,2); q(4,5,7,6);
+  } else if (t === 'prisma') {
+    const hw = s.w/2, hh = s.h/2, hd = s.d/2;
+    V.push([-hw,-hh,-hd],[hw,-hh,-hd],[0,hh,-hd],[-hw,-hh,hd],[hw,-hh,hd],[0,hh,hd]);
+    F.push([0,1,2],[3,4,5]); q(0,1,4,3); q(0,2,5,3); q(1,2,5,4);
+  } else if (t === 'piramide') {
+    const hw = s.w/2, hh = s.h/2, hd = s.d/2;
+    V.push([-hw,-hh,-hd],[hw,-hh,-hd],[hw,-hh,hd],[-hw,-hh,hd],[0,hh,0]);
+    q(0,1,2,3); F.push([0,1,4],[1,2,4],[2,3,4],[3,0,4]);
+  } else if (t === 'cilindro') {
+    const n = Math.max(3, s.seg|0), r = s.r, hh = s.h/2;
+    for (let i = 0; i < n; i++) { const a = 2*Math.PI*i/n; V.push([r*Math.cos(a), -hh, r*Math.sin(a)]); }
+    for (let i = 0; i < n; i++) { const a = 2*Math.PI*i/n; V.push([r*Math.cos(a),  hh, r*Math.sin(a)]); }
+    const cb = V.length; V.push([0,-hh,0]);
+    const ct = V.length; V.push([0, hh,0]);
+    for (let i = 0; i < n; i++) {
+      const j = (i+1) % n;
+      q(i, j, n+j, n+i); F.push([cb,i,j],[ct,n+i,n+j]);
+    }
+  } else {
+    const an = Math.max(2, s.aneis|0), st = Math.max(3, s.setores|0), r = s.r;
+    V.push([0,-r,0],[0,r,0]);
+    for (let j = 1; j < an; j++) {
+      const lat = (-90 + 180*j/an) * D2R, yy = r*Math.sin(lat), rr = r*Math.cos(lat);
+      for (let i = 0; i < st; i++) { const a = 2*Math.PI*i/st; V.push([rr*Math.cos(a), yy, rr*Math.sin(a)]); }
+    }
+    const A = (j, i) => 2 + (j-1)*st + (i % st);
+    for (let i = 0; i < st; i++) F.push([0, A(1,i), A(1,i+1)], [1, A(an-1,i), A(an-1,i+1)]);
+    for (let j = 1; j < an-1; j++) for (let i = 0; i < st; i++) q(A(j,i), A(j,i+1), A(j+1,i+1), A(j+1,i));
+  }
+  const N = [];
+  for (const f of F) {
+    const a = V[f[0]], b = V[f[1]], c = V[f[2]];
+    const u = [b[0]-a[0], b[1]-a[1], b[2]-a[2]], v = [c[0]-a[0], c[1]-a[1], c[2]-a[2]];
+    let n = [u[1]*v[2]-u[2]*v[1], u[2]*v[0]-u[0]*v[2], u[0]*v[1]-u[1]*v[0]];
+    const g = [a[0]+(u[0]+v[0])/3, a[1]+(u[1]+v[1])/3, a[2]+(u[2]+v[2])/3];
+    if (n[0]*g[0] + n[1]*g[1] + n[2]*g[2] < 0) { const x = f[1]; f[1] = f[2]; f[2] = x; n = [-n[0],-n[1],-n[2]]; }
+    const len = Math.hypot(n[0], n[1], n[2]) || 1;
+    N.push([n[0]/len, n[1]/len, n[2]/len]);
+  }
+  const em = new Map();
+  F.forEach((f, i) => { for (let k = 0; k < 3; k++) {
+    const a = f[k], b = f[(k+1)%3], key = a < b ? a+'_'+b : b+'_'+a;
+    if (!em.has(key)) em.set(key, { a: Math.min(a,b), b: Math.max(a,b), fs: [] });
+    em.get(key).fs.push(i);
+  }});
+  const edges = [];
+  em.forEach(e => {
+    if (e.fs.length === 2) {
+      const p = N[e.fs[0]], r = N[e.fs[1]];
+      if (p[0]*r[0] + p[1]*r[1] + p[2]*r[2] > 0.9999) return;
+    }
+    edges.push([e.a, e.b]);
+  });
+  return { V, F, N, edges };
+}
+
+function fnum(n) {
+  n = Math.round(n * 10000) / 10000;
+  if (n === 0) n = 0;
+  let s = String(n);
+  if (s.indexOf('e') >= 0) s = n.toFixed(4);
+  if (s.indexOf('.') < 0) s += '.0';
+  return s + 'f';
+}
+function ident(n, fb) {
+  let s = String(n == null ? '' : n).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9_]+/g, '_').replace(/^_+|_+$/g, '');
+  if (!s) s = fb;
+  if (/^[0-9]/.test(s)) s = '_' + s;
+  return s;
+}
+function hexRGB(h) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(h || '');
+  const v = m ? parseInt(m[1], 16) : 0xffffff;
+  return [(v >> 16) & 255, (v >> 8) & 255, v & 255];
+}
+const clean = s => String(s == null ? '' : s).replace(/[\u0000-\u001f]/g, ' ');
+
+function genCode(st) {
+  const o = st.opts, sc = st.scene, out = [];
+  const used = new Set();
+  const uniq = b => { let n = b, i = 2; while (used.has(n)) n = b + '_' + (i++); used.add(n); return n; };
+  const pref = String(o.prefix || '').replace(/[^A-Za-z0-9_]/g, '');
+  const fn = ident(o.fn, 'cenario'), camv = ident(o.cam, 'cam');
+  const arr = 'formas_' + fn, narr = 'N_FORMAS_' + fn.toUpperCase();
+  const rows = st.shapes.filter(s => s.visible !== false).map(s => ({ s, v: uniq(pref + ident(s.name, s.type)), cv: '' }));
+  rows.forEach(r => { r.cv = uniq('cor_' + ident(r.s.name, r.s.type)); });
+  const lights = st.lights.filter(l => l.visible !== false).map(l => ({ l, cv: uniq('cor_' + ident(l.name, 'luz')) }));
+  const hasIni = !!o.iniciar, hasLoop = hasIni && !!o.loop;
+
+  out.push('// Gerado pelo Editor de Formas 3D (' + rows.length + (rows.length === 1 ? ' forma' : ' formas') +
+    (lights.length ? ', ' + lights.length + (lights.length === 1 ? ' luz' : ' luzes') : '') + ')');
+  if (o.inc) out.push('#include "render.hpp"  // ajuste o caminho conforme o seu projeto');
+  out.push('');
+
+  if (rows.length) {
+    out.push('// Globais: a malha é liberada quando o Form3d é destruído.');
+    rows.forEach(r => out.push('Form3d ' + r.v + ';'));
+    out.push('');
+    out.push('Form3d* ' + arr + '[] = {');
+    for (let i = 0; i < rows.length; i += 4)
+      out.push('    ' + rows.slice(i, i + 4).map(r => '&' + r.v).join(', ') + (i + 4 < rows.length ? ',' : ''));
+    out.push('};');
+    out.push('const int ' + narr + ' = ' + rows.length + ';');
+  } else {
+    out.push('Form3d* ' + arr + '[1] = { nullptr };');
+    out.push('const int ' + narr + ' = 0;');
+  }
+  if (hasIni) { out.push(''); out.push('Cam3d ' + camv + ';'); }
+
+  out.push('');
+  out.push('void ' + fn + '() {');
+  if (!rows.length) out.push('    // (sem formas)');
+  rows.forEach((r, i) => {
+    const s = r.s, v = r.v;
+    if (i) out.push('');
+    out.push('    // ' + clean(s.name) + ' (' + SHAPES[s.type].label.toLowerCase() + ')');
+    const p = fnum(s.x) + ', ' + fnum(s.y) + ', ' + fnum(s.z);
+    if (s.type === 'esfera') out.push('    ' + v + '.esfera(' + p + ', ' + fnum(s.r) + ', ' + (s.aneis|0) + ', ' + (s.setores|0) + ');');
+    else if (s.type === 'cilindro') out.push('    ' + v + '.cilindro(' + p + ', ' + fnum(s.r) + ', ' + fnum(s.h) + ', ' + (s.seg|0) + ');');
+    else out.push('    ' + v + '.' + s.type + '(' + p + ', ' + fnum(s.w) + ', ' + fnum(s.h) + ', ' + fnum(s.d) + ');');
+    if (!o.omit || s.ax) out.push('    ' + v + '.angulo_x(' + fnum(s.ax) + ');');
+    if (!o.omit || s.ay) out.push('    ' + v + '.angulo_y(' + fnum(s.ay) + ');');
+    if (!o.omit || s.az) out.push('    ' + v + '.angulo_z(' + fnum(s.az) + ');');
+    const c = hexRGB(s.color);
+    if (!o.omit || (c[0] & c[1] & c[2]) !== 255) {
+      out.push('    fb_cores ' + r.cv + ' = {' + c[0] + ', ' + c[1] + ', ' + c[2] + ', 255};');
+      out.push('    ' + v + '.usar_cor(&' + r.cv + ');');
+    }
+    if (!o.omit || s.col !== 'OBB') out.push('    ' + v + '.definir_colisao(' + (s.col === 'AABB' ? 'AABB' : 'OBB') + ');');
+  });
+  out.push('}');
+
+  if (lights.length) {
+    out.push('');
+    out.push('// Chame depois de ' + camv + '.criar(): criar() reinicia as luzes da câmera.');
+    out.push('void ' + fn + '_luzes(Cam3d& ' + camv + ') {');
+    lights.forEach(({ l, cv }, i) => {
+      const c = hexRGB(l.color);
+      if (i) out.push('');
+      out.push('    // ' + clean(l.name));
+      out.push('    fb_cores ' + cv + ' = {' + c[0] + ', ' + c[1] + ', ' + c[2] + ', 255};');
+      out.push('    ' + camv + '.criar_luz(' + fnum(l.x) + ', ' + fnum(l.y) + ', ' + fnum(l.z) + ', &' + cv + ', ' + fnum(l.intensidade) + ', ' + fnum(l.alcance) + ');');
+    });
+    out.push('}');
+  }
+
+  if (hasIni) {
+    out.push('');
+    out.push('void iniciar() {');
+    out.push('    ' + camv + '.criar(FPS, ' + fnum(sc.cx) + ', ' + fnum(sc.cy) + ', ' + fnum(sc.cz) + ', ' + fnum(sc.cpitch) + ', ' + fnum(sc.cyaw) + ', 0.0f);');
+    out.push('    ' + camv + '.ambiente(' + fnum(sc.ambiente) + ');');
+    out.push('    ' + camv + '.luz_direcional(' + fnum(sc.lx) + ', ' + fnum(sc.ly) + ', ' + fnum(sc.lz) + ');');
+    if (sc.chao) out.push('    ' + camv + '.definir_chao(' + fnum(sc.chaoY) + ');');
+    out.push('    ' + fn + '();');
+    if (lights.length) out.push('    ' + fn + '_luzes(' + camv + ');');
+    if (o.colcam && rows.length) out.push('    ' + camv + '.colisao(' + arr + ', ' + narr + ');');
+    out.push('}');
+  }
+  if (hasLoop) {
+    out.push('');
+    out.push('void rodar(float delta) {');
+    out.push('    ' + camv + '.atualizar(delta);');
+    out.push('}');
+    out.push('');
+    out.push('void desenhar(janela *j) {');
+    out.push('    ' + camv + '.desenhar(*j, ' + arr + ', ' + narr + ');');
+    out.push('}');
+  }
+  return out.join('\n') + '\n';
+}
+/* </pure> */
+
+/* ---------- estado ---------- */
+const $ = id => document.getElementById(id);
+const KEY = 'editor-formas-3d-v1';
+const PAL = ['#e07a5f', '#81b29a', '#f2cc8f', '#5b8def', '#b58fd8', '#e9c46a', '#8ecae6', '#c0c5ce'];
+const NUMKEYS = ['x','y','z','w','h','d','r','aneis','setores','seg','ax','ay','az'];
+
+function baseShape(type) {
+  return Object.assign({ id: 0, type, name: type, x: 0, y: 0, z: 0, w: 1, h: 1, d: 1, r: 0.5, aneis: 8, setores: 12, seg: 12,
+    ax: 0, ay: 0, az: 0, color: '#c0c5ce', col: 'OBB', visible: true }, SHAPES[type].def);
+}
+function defaultScene() {
+  return { ambiente: 0.27, lx: -0.35, ly: 0.75, lz: -0.55, cx: 0, cy: 1.7, cz: -9, cyaw: 0, cpitch: 0, chao: true, chaoY: 0 };
+}
+function defaultOpts() {
+  return { fn: 'cenario', prefix: 'f_', cam: 'cam', inc: true, iniciar: true, loop: false, colcam: true, omit: true };
+}
+function exampleState() {
+  const S0 = { v: 1, nextId: 1, example: true, shapes: [], lights: [], scene: defaultScene(), opts: defaultOpts() };
+  const add = (type, name, props) => { const s = Object.assign(baseShape(type), props, { name, id: S0.nextId++ }); S0.shapes.push(s); };
+  add('cubo', 'chao', { x: 0, y: -0.25, z: 0, w: 30, h: 0.5, d: 30, color: '#5f7d52', col: 'AABB' });
+  add('cubo', 'parede', { x: 0, y: 1.25, z: 0, w: 4, h: 2.5, d: 4, color: '#d9c9a3' });
+  add('prisma', 'telhado', { x: 0, y: 3.2, z: 0, w: 5, h: 1.4, d: 4.6, color: '#a4472f' });
+  add('cubo', 'porta', { x: 0, y: 0.9, z: -2.04, w: 0.9, h: 1.8, d: 0.12, color: '#6b4a2f' });
+  add('cilindro', 'tronco', { x: 5, y: 1, z: 2, r: 0.25, h: 2, seg: 8, color: '#7a5230' });
+  add('piramide', 'copa', { x: 5, y: 3.2, z: 2, w: 2.2, h: 2.6, d: 2.2, color: '#2f6b3f' });
+  add('esfera', 'pedra', { x: -4.5, y: 0.45, z: -3, r: 0.6, aneis: 6, setores: 10, color: '#8a8f98' });
+  add('piramide', 'cristal', { x: -5, y: 0.8, z: 3, w: 0.8, h: 1.6, d: 0.8, ay: 35, color: '#4cc9f0' });
+  S0.lights.push({ id: S0.nextId++, name: 'lampada', x: 0, y: 2.2, z: -3.2, color: '#ffd9a0', intensidade: 1.1, alcance: 8, visible: true });
+  return S0;
+}
+function normalize(o) {
+  if (!o || !Array.isArray(o.shapes)) throw new Error('Projeto inválido: não encontrei a lista de formas.');
+  const st = { v: 1, nextId: 1, example: !!o.example, shapes: [], lights: [], scene: Object.assign(defaultScene(), o.scene || {}), opts: Object.assign(defaultOpts(), o.opts || {}) };
+  for (const k of ['ambiente','lx','ly','lz','cx','cy','cz','cyaw','cpitch','chaoY']) if (!isFinite(+st.scene[k])) st.scene[k] = defaultScene()[k]; else st.scene[k] = +st.scene[k];
+  st.scene.chao = !!st.scene.chao;
+  for (const s of o.shapes) {
+    if (!s || !SHAPES[s.type]) continue;
+    const b = baseShape(s.type), n = Object.assign(b, s);
+    for (const k of NUMKEYS) n[k] = isFinite(+n[k]) ? +n[k] : b[k];
+    n.color = /^#[0-9a-f]{6}$/i.test(n.color) ? n.color : b.color;
+    n.col = n.col === 'AABB' ? 'AABB' : 'OBB';
+    n.name = String(n.name || s.type).slice(0, 40);
+    n.visible = n.visible !== false;
+    n.id = st.nextId++;
+    st.shapes.push(n);
+  }
+  for (const l of (o.lights || []).slice(0, 6)) {
+    if (!l) continue;
+    const n = Object.assign({ name: 'luz', x: 0, y: 2, z: 0, color: '#ffe2b0', intensidade: 1, alcance: 8, visible: true }, l);
+    for (const k of ['x','y','z','intensidade','alcance']) n[k] = isFinite(+n[k]) ? +n[k] : 0;
+    if (n.alcance <= 0) n.alcance = 8;
+    n.color = /^#[0-9a-f]{6}$/i.test(n.color) ? n.color : '#ffe2b0';
+    n.name = String(n.name || 'luz').slice(0, 40);
+    n.visible = n.visible !== false;
+    n.id = st.nextId++;
+    st.lights.push(n);
+  }
+  return st;
+}
+
+let S = null;
+try { const t = localStorage.getItem(KEY); if (t) S = normalize(JSON.parse(t)); } catch (e) { S = null; }
+if (!S) S = exampleState();
+let sel = null;
+const ed = { tx: 0, ty: 1.2, tz: 0, yaw: 28, pitch: -22, dist: 13 };
+
+const snapData = () => ({ v: 1, nextId: S.nextId, example: S.example, shapes: S.shapes, lights: S.lights, scene: S.scene, opts: S.opts });
+let last = JSON.stringify(snapData());
+const hist = { u: [], r: [] };
+function updUndo() { $('btn-undo').disabled = !hist.u.length; $('btn-redo').disabled = !hist.r.length; }
+function commit() {
+  const s = JSON.stringify(snapData());
+  if (s === last) return;
+  hist.u.push(last); if (hist.u.length > 100) hist.u.shift();
+  hist.r.length = 0; last = s; updUndo(); scheduleSave();
+}
+function restore(str) {
+  const o = JSON.parse(str);
+  S.nextId = o.nextId; S.example = o.example; S.shapes = o.shapes; S.lights = o.lights; S.scene = o.scene; S.opts = o.opts;
+  if (sel && !item()) sel = null;
+  refreshAll(); updUndo(); scheduleSave();
+}
+function undo() { if (!hist.u.length) return; hist.r.push(last); last = hist.u.pop(); restore(last); }
+function redo() { if (!hist.r.length) return; hist.u.push(last); last = hist.r.pop(); restore(last); }
+
+let saveT = 0;
+function scheduleSave() { clearTimeout(saveT); saveT = setTimeout(() => { try { localStorage.setItem(KEY, JSON.stringify(snapData())); } catch (e) {} }, 400); }
+
+function item() {
+  if (!sel) return null;
+  return (sel.k === 's' ? S.shapes : S.lights).find(o => o.id === sel.id) || null;
+}
+const fmt = v => String(Math.round(v * 1000) / 1000);
+const snapStep = () => { const v = parseFloat($('snap').value); return isFinite(v) && v > 0 ? v : 0; };
+const snapV = v => { const g = snapStep(); return g ? Math.round(v / g) * g : v; };
+
+/* ---------- viewport ---------- */
+const cA = $('cvA'), cB = $('cvB'), cC = $('cvC'), vpEl = $('vp');
+const gA = cA.getContext('2d'), gB = cB.getContext('2d'), gC = cC.getContext('2d');
+let cssW = 1, cssH = 1, dpr = 1, lowW = 8, lowH = 8, img = null, u32 = null, zbuf = null, idb = null, retro = true;
+let E = [0,0,0], MV = viewMat(0,0), th = {}, lightScreen = [], raf = 0, tris = 0;
+const meshCache = new Map();
+
+function getMesh(s) {
+  const key = [s.type, s.w, s.h, s.d, s.r, s.aneis, s.setores, s.seg].join('|');
+  let c = meshCache.get(s.id);
+  if (!c || c.key !== key) { c = { key, mesh: buildMesh(s) }; meshCache.set(s.id, c); }
+  return c.mesh;
+}
+function resize() {
+  const r = vpEl.getBoundingClientRect();
+  cssW = Math.max(1, Math.floor(r.width)); cssH = Math.max(1, Math.floor(r.height));
+  dpr = Math.min(2, window.devicePixelRatio || 1);
+  for (const c of [cA, cC]) { c.width = Math.floor(cssW * dpr); c.height = Math.floor(cssH * dpr); }
+  const k = retro ? 0.5 : dpr;
+  lowW = Math.max(8, Math.round(cssW * k)); lowH = Math.max(8, Math.round(cssH * k));
+  cB.width = lowW; cB.height = lowH;
+  img = gB.createImageData(lowW, lowH);
+  u32 = new Uint32Array(img.data.buffer);
+  zbuf = new Float32Array(lowW * lowH);
+  idb = new Int32Array(lowW * lowH);
+  requestRender();
+}
+function requestRender() { if (!raf) raf = requestAnimationFrame(renderAll); }
+function readTheme() {
+  const cs = getComputedStyle(document.documentElement), g = n => cs.getPropertyValue(n).trim();
+  th = { bg: g('--vp-bg'), grid: g('--grid'), major: g('--grid-major'), sel: g('--sel'), ax: g('--ax-x'), ay: g('--ax-y'), az: g('--ax-z'), fg: g('--fg') };
+}
+function camSetup() {
+  const y = ed.yaw * D2R, p = ed.pitch * D2R;
+  const fx = Math.sin(y) * Math.cos(p), fy = Math.sin(p), fz = Math.cos(y) * Math.cos(p);
+  E = [ed.tx - fx * ed.dist, ed.ty - fy * ed.dist, ed.tz - fz * ed.dist];
+  MV = viewMat(ed.yaw, ed.pitch);
+}
+const toView = (x, y, z) => mv(MV, [x - E[0], y - E[1], z - E[2]]);
+function clipNear(a, b) {
+  if (a[2] < NEAR && b[2] < NEAR) return null;
+  if (a[2] >= NEAR && b[2] >= NEAR) return [a, b];
+  const t = (NEAR - a[2]) / (b[2] - a[2]);
+  const m = [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, NEAR];
+  return a[2] < NEAR ? [m, b] : [a, m];
+}
+function seg(g, W, H, a, b) {
+  const c = clipNear(a, b); if (!c) return;
+  const f = (W / 2) / TANH;
+  g.moveTo(W / 2 + c[0][0] / c[0][2] * f, H / 2 - c[0][1] / c[0][2] * f);
+  g.lineTo(W / 2 + c[1][0] / c[1][2] * f, H / 2 - c[1][1] / c[1][2] * f);
+}
+function projV(v, W, H) {
+  if (v[2] < NEAR) return null;
+  const f = (W / 2) / TANH;
+  return [W / 2 + v[0] / v[2] * f, H / 2 - v[1] / v[2] * f];
+}
+
+function drawGrid() {
+  const W = cA.width, H = cA.height, N = 20;
+  gA.fillStyle = th.bg; gA.fillRect(0, 0, W, H);
+  const lines = (pred, style, lw) => {
+    gA.beginPath();
+    for (let i = -N; i <= N; i++) {
+      if (!pred(i)) continue;
+      seg(gA, W, H, toView(i, 0, -N), toView(i, 0, N));
+      seg(gA, W, H, toView(-N, 0, i), toView(N, 0, i));
+    }
+    gA.strokeStyle = style; gA.lineWidth = lw * dpr; gA.stroke();
+  };
+  lines(i => i % 5 !== 0 && i !== 0, th.grid, 1);
+  lines(i => i % 5 === 0 && i !== 0, th.major, 1);
+  gA.beginPath(); seg(gA, W, H, toView(-N, 0, 0), toView(N, 0, 0)); gA.strokeStyle = th.ax; gA.lineWidth = 1.5 * dpr; gA.stroke();
+  gA.beginPath(); seg(gA, W, H, toView(0, 0, -N), toView(0, 0, N)); gA.strokeStyle = th.az; gA.lineWidth = 1.5 * dpr; gA.stroke();
+}
+
+function clipPoly(poly) {
+  const out = [];
+  for (let i = 0; i < poly.length; i++) {
+    const p = poly[i], q = poly[(i + 1) % poly.length];
+    const pd = p[2] >= NEAR, qd = q[2] >= NEAR;
+    if (pd) out.push(p);
+    if (pd !== qd) {
+      const t = (NEAR - p[2]) / (q[2] - p[2]), r = [];
+      for (let k = 0; k < 6; k++) r.push(p[k] + (q[k] - p[k]) * t);
+      r[2] = NEAR; out.push(r);
+    }
+  }
+  return out;
+}
+
+function rast(p0, p1, p2, fc, id) {
+  const x0 = p0[0], y0 = p0[1], x1 = p1[0], y1 = p1[1], x2 = p2[0], y2 = p2[1];
+  const area = (x1 - x0) * (y2 - y0) - (y1 - y0) * (x2 - x0);
+  if (!(area > 0)) return false;
+  const minx = Math.max(0, Math.floor(Math.min(x0, x1, x2))), maxx = Math.min(lowW - 1, Math.ceil(Math.max(x0, x1, x2)));
+  const miny = Math.max(0, Math.floor(Math.min(y0, y1, y2))), maxy = Math.min(lowH - 1, Math.ceil(Math.max(y0, y1, y2)));
+  if (minx > maxx || miny > maxy) return true;
+  const inv = 1 / area, iz0 = p0[2], iz1 = p1[2], iz2 = p2[2], ls = fc.lights, nl = ls.length;
+  const flat = 0xFF000000 | (fc.b << 16) | (fc.g << 8) | fc.r;
+  for (let py = miny; py <= maxy; py++) {
+    const sy = py + 0.5;
+    for (let px = minx; px <= maxx; px++) {
+      const sx = px + 0.5;
+      const w0 = (x2 - x1) * (sy - y1) - (y2 - y1) * (sx - x1);
+      const w1 = (x0 - x2) * (sy - y2) - (y0 - y2) * (sx - x2);
+      const w2 = (x1 - x0) * (sy - y0) - (y1 - y0) * (sx - x0);
+      if (w0 < 0 || w1 < 0 || w2 < 0) continue;
+      const l0 = w0 * inv, l1 = w1 * inv, l2 = w2 * inv;
+      const iz = l0 * iz0 + l1 * iz1 + l2 * iz2;
+      const idx = py * lowW + px;
+      if (iz <= zbuf[idx]) continue;
+      zbuf[idx] = iz; idb[idx] = id;
+      if (!nl) { u32[idx] = flat; continue; }
+      const wx = (l0 * p0[3] + l1 * p1[3] + l2 * p2[3]) / iz;
+      const wy = (l0 * p0[4] + l1 * p1[4] + l2 * p2[4]) / iz;
+      const wz = (l0 * p0[5] + l1 * p1[5] + l2 * p2[5]) / iz;
+      let ar = fc.A, ag = fc.A, ab = fc.A;
+      for (let j = 0; j < nl; j++) {
+        const L = ls[j], dx = L.x - wx, dy = L.y - wy, dz = L.z - wz;
+        const d2 = dx * dx + dy * dy + dz * dz;
+        if (d2 >= L.r2) continue;
+        const nd = fc.nx * dx + fc.ny * dy + fc.nz * dz;
+        if (nd <= 0) continue;
+        let ndl = nd / Math.sqrt(d2); if (ndl > 1) ndl = 1;
+        let att = 1 - d2 / L.r2; att = att * (1 + att) * 0.5;
+        ndl += (1 - ndl) * 0.5;
+        const li = att * ndl;
+        ar += li * L.cr; ag += li * L.cg; ab += li * L.cb;
+      }
+      if (ar > 2) ar = 2; if (ag > 2) ag = 2; if (ab > 2) ab = 2;
+      const r = Math.min(255, fc.br * ar) | 0, g = Math.min(255, fc.bg * ag) | 0, b = Math.min(255, fc.bb * ab) | 0;
+      u32[idx] = 0xFF000000 | (b << 16) | (g << 8) | r;
+    }
+  }
+  return true;
+}
+
+function drawShapes() {
+  u32.fill(0); zbuf.fill(0); idb.fill(-1);
+  const W = lowW, H = lowH, f = (W / 2) / TANH, sc = S.scene;
+  let ld = [sc.lx, sc.ly, sc.lz]; const ll = Math.hypot(ld[0], ld[1], ld[2]) || 1; ld = ld.map(v => v / ll);
+  const A0 = Math.max(0, Math.min(1, sc.ambiente)) * 255;
+  const lights = S.lights.filter(l => l.visible !== false).map(l => {
+    const c = hexRGB(l.color), k = Math.max(0, l.intensidade) / 255, al = Math.max(0.05, l.alcance);
+    return { x: l.x, y: l.y, z: l.z, r2: al * al, cr: c[0] * k, cg: c[1] * k, cb: c[2] * k };
+  });
+  tris = 0;
+  const proj = v => [W / 2 + v[0] / v[2] * f, H / 2 - v[1] / v[2] * f, 1 / v[2], v[3] / v[2], v[4] / v[2], v[5] / v[2]];
+  for (const s of S.shapes) {
+    if (s.visible === false) continue;
+    const m = getMesh(s), R = modelMat(s), base = hexRGB(s.color);
+    const pw = m.V.map(v => { const w = mv(R, v); return [w[0] + s.x, w[1] + s.y, w[2] + s.z]; });
+    const pv = pw.map(w => mv(MV, [w[0] - E[0], w[1] - E[1], w[2] - E[2]]));
+    for (let i = 0; i < m.F.length; i++) {
+      const fi = m.F[i], a = pv[fi[0]], b = pv[fi[1]], c = pv[fi[2]];
+      if (a[2] < NEAR && b[2] < NEAR && c[2] < NEAR) continue;
+      const nw = mv(R, m.N[i]);
+      const dot = Math.max(0, nw[0] * ld[0] + nw[1] * ld[1] + nw[2] * ld[2]);
+      const A = (A0 + (255 - A0) * dot) / 255;
+      const wa = pw[fi[0]], fl = [];
+      for (const L of lights) if (nw[0] * (L.x - wa[0]) + nw[1] * (L.y - wa[1]) + nw[2] * (L.z - wa[2]) > 0) fl.push(L);
+      const fc = { A, br: base[0], bg: base[1], bb: base[2], r: Math.min(255, base[0] * A) | 0, g: Math.min(255, base[1] * A) | 0, b: Math.min(255, base[2] * A) | 0, nx: nw[0], ny: nw[1], nz: nw[2], lights: fl };
+      let poly = [[a[0], a[1], a[2], wa[0], wa[1], wa[2]], [b[0], b[1], b[2], pw[fi[1]][0], pw[fi[1]][1], pw[fi[1]][2]], [c[0], c[1], c[2], pw[fi[2]][0], pw[fi[2]][1], pw[fi[2]][2]]];
+      if (a[2] < NEAR || b[2] < NEAR || c[2] < NEAR) poly = clipPoly(poly);
+      if (poly.length < 3) continue;
+      const pp = poly.map(proj);
+      for (let k = 1; k + 1 < pp.length; k++) if (rast(pp[0], pp[k], pp[k + 1], fc, s.id)) tris++;
+    }
+  }
+  gB.putImageData(img, 0, 0);
+}
+
+function drawOverlay() {
+  const W = cC.width, H = cC.height;
+  gC.clearRect(0, 0, W, H);
+  const o = item();
+  if (o && sel.k === 's' && o.visible !== false) {
+    const m = getMesh(o), R = modelMat(o);
+    const pv = m.V.map(v => { const w = mv(R, v); return toView(w[0] + o.x, w[1] + o.y, w[2] + o.z); });
+    gC.beginPath();
+    for (const e of m.edges) seg(gC, W, H, pv[e[0]], pv[e[1]]);
+    gC.strokeStyle = th.sel; gC.lineWidth = 1.6 * dpr; gC.lineJoin = 'round'; gC.stroke();
+  }
+  lightScreen = [];
+  for (const l of S.lights) {
+    if (l.visible === false) continue;
+    const p = projV(toView(l.x, l.y, l.z), W, H); if (!p) continue;
+    lightScreen.push({ id: l.id, x: p[0] / dpr, y: p[1] / dpr });
+    const on = sel && sel.k === 'l' && sel.id === l.id, r = 7 * dpr;
+    if (on) {
+      gC.strokeStyle = l.color; gC.globalAlpha = 0.5; gC.lineWidth = dpr; gC.beginPath();
+      for (let ax = 0; ax < 3; ax++) for (let i = 0; i <= 48; i++) {
+        const a = 2 * Math.PI * i / 48, c = Math.cos(a) * l.alcance, s2 = Math.sin(a) * l.alcance;
+        const w = ax === 0 ? [l.x + c, l.y + s2, l.z] : ax === 1 ? [l.x + c, l.y, l.z + s2] : [l.x, l.y + c, l.z + s2];
+        const v = toView(w[0], w[1], w[2]);
+        if (i === 0) { gC.moveTo(-1e5, -1e5); this_prev = v; }
+        else seg(gC, W, H, this_prev, v);
+        this_prev = v;
+      }
+      gC.stroke(); gC.globalAlpha = 1;
+    }
+    gC.beginPath(); gC.moveTo(p[0], p[1] - r); gC.lineTo(p[0] + r, p[1]); gC.lineTo(p[0], p[1] + r); gC.lineTo(p[0] - r, p[1]); gC.closePath();
+    gC.fillStyle = l.color; gC.fill();
+    gC.strokeStyle = on ? th.sel : th.fg; gC.lineWidth = (on ? 2 : 1) * dpr; gC.stroke();
+  }
+  // eixos no canto
+  const ox = 46 * dpr, oy = H - 46 * dpr, len = 28 * dpr;
+  gC.font = (11 * dpr) + 'px ' + getComputedStyle(document.body).fontFamily; gC.textAlign = 'center'; gC.textBaseline = 'middle';
+  [['X', [1,0,0], th.ax], ['Y', [0,1,0], th.ay], ['Z', [0,0,1], th.az]].forEach(([n, a, col]) => {
+    const v = mv(MV, a), x = ox + v[0] * len, y = oy - v[1] * len;
+    gC.beginPath(); gC.moveTo(ox, oy); gC.lineTo(x, y); gC.strokeStyle = col; gC.lineWidth = 2 * dpr; gC.stroke();
+    gC.fillStyle = col; gC.fillText(n, ox + v[0] * (len + 9 * dpr), oy - v[1] * (len + 9 * dpr));
+  });
+}
+let this_prev = null;
+
+function renderAll() {
+  raf = 0;
+  if (!img) return;
+  readTheme(); camSetup();
+  drawGrid(); drawShapes(); drawOverlay();
+  updateStats();
+}
+function updateStats() {
+  const n = S.shapes.filter(s => s.visible !== false).length;
+  $('stats').textContent = n + (n === 1 ? ' forma' : ' formas') + ' · ' + tris + ' tri';
+}
+
+/* ---------- UI ---------- */
+const I = {
+  cubo: '<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/>',
+  esfera: '<circle cx="12" cy="12" r="8.5"/><ellipse cx="12" cy="12" rx="8.5" ry="3.2"/><ellipse cx="12" cy="12" rx="3.4" ry="8.5"/>',
+  prisma: '<path d="M3 19h10L8 8z"/><path d="M13 19l7-4M8 8l7-4M20 15L15 4M20 15H10"/>',
+  piramide: '<path d="M12 3L4 17l8 4 8-4z"/><path d="M12 3v18"/>',
+  cilindro: '<ellipse cx="12" cy="6" rx="7" ry="2.8"/><path d="M5 6v12c0 1.6 3.1 2.8 7 2.8s7-1.2 7-2.8V6"/>',
+  luz: '<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/>',
+  eye: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+  eyeoff: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><path d="M4 4l16 16"/>',
+  dup: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>',
+  del: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>'
+};
+const svg = n => '<svg class="i" viewBox="0 0 24 24" aria-hidden="true">' + I[n] + '</svg>';
+
+function h(tag, attrs, ...kids) {
+  const e = document.createElement(tag);
+  if (attrs) for (const k in attrs) {
+    const v = attrs[k];
+    if (k === 'class') e.className = v;
+    else if (k === 'html') e.innerHTML = v;
+    else if (k.slice(0, 2) === 'on') e.addEventListener(k.slice(2), v);
+    else if (v === true) e.setAttribute(k, '');
+    else if (v !== false && v != null) e.setAttribute(k, v);
+  }
+  for (const c of kids.flat()) if (c != null) e.append(c.nodeType ? c : document.createTextNode(c));
+  return e;
+}
+let toastT = 0;
+function toast(msg) {
+  const t = $('toast'); t.textContent = msg; t.hidden = false;
+  clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, 2000);
+}
+function touch() { requestRender(); scheduleCode(); scheduleSave(); }
+
+function uniqueName(base) {
+  const names = new Set(S.shapes.concat(S.lights).map(o => o.name));
+  let i = 1; while (names.has(base + i)) i++;
+  return base + i;
+}
+function select(s) {
+  sel = s;
+  setRightTab('obj');
+  refreshList(); refreshProps(); requestRender();
+}
+function addShape(type) {
+  const s = Object.assign(baseShape(type), { id: S.nextId++, name: uniqueName(type), x: snapV(ed.tx), z: snapV(ed.tz), color: PAL[S.nextId % PAL.length] });
+  s.y = type === 'esfera' ? s.r : s.h / 2;
+  S.shapes.push(s);
+  select({ k: 's', id: s.id }); commit(); scheduleCode();
+}
+function addLight() {
+  if (S.lights.length >= 6) { toast('Máximo de 6 luzes: a câmera usa 2 das 8 para lanterna e aura.'); return; }
+  const l = { id: S.nextId++, name: uniqueName('luz'), x: snapV(ed.tx), y: 2.5, z: snapV(ed.tz), color: '#ffe2b0', intensidade: 1, alcance: 8, visible: true };
+  S.lights.push(l);
+  select({ k: 'l', id: l.id }); commit(); scheduleCode();
+}
+function dupItem() {
+  const o = item(); if (!o) return;
+  const c = JSON.parse(JSON.stringify(o)), g = snapStep() || 0.5;
+  if (sel.k === 'l' && S.lights.length >= 6) { toast('Máximo de 6 luzes.'); return; }
+  c.id = S.nextId++; c.name = uniqueName(sel.k === 'l' ? 'luz' : o.type); c.x += g; c.z += g;
+  (sel.k === 's' ? S.shapes : S.lights).push(c);
+  select({ k: sel.k, id: c.id }); commit(); scheduleCode();
+}
+function delItem() {
+  const o = item(); if (!o) return;
+  const arr = sel.k === 's' ? S.shapes : S.lights;
+  arr.splice(arr.indexOf(o), 1); meshCache.delete(o.id);
+  sel = null; refreshList(); refreshProps(); requestRender(); commit(); scheduleCode();
+}
+
+function refreshList() {
+  const ul = $('list'); ul.textContent = '';
+  const row = (o, k, icon) => {
+    const on = sel && sel.k === k && sel.id === o.id;
+    const li = h('li', { class: 'row' + (on ? ' on' : '') + (o.visible === false ? ' off' : '') });
+    const sw = k === 's' ? h('span', { class: 'sw', style: 'background:' + o.color }) : h('span', { class: 'sw', style: 'background:' + o.color + ';border-radius:50%' });
+    li.append(
+      h('button', { class: 'rowbtn', type: 'button', onclick: () => select({ k, id: o.id }), 'aria-pressed': on ? 'true' : 'false' }, sw, h('span', { class: 'nm' }, o.name), h('span', { class: 'dim', style: 'font-size:11px' }, k === 's' ? SHAPES[o.type].label : 'Luz')),
+      h('button', { class: 'tiny', type: 'button', title: 'Mostrar/ocultar (oculta também some do código)', 'aria-label': 'Mostrar ou ocultar', html: svg(o.visible === false ? 'eyeoff' : 'eye'),
+        onclick: () => { o.visible = o.visible === false; refreshList(); touch(); commit(); } })
+    );
+    ul.append(li);
+  };
+  S.shapes.forEach(s => row(s, 's')); S.lights.forEach(l => row(l, 'l'));
+  if (!S.shapes.length && !S.lights.length) ul.append(h('li', { class: 'empty' }, 'A cena está vazia. Adicione uma forma acima.'));
+  $('count').textContent = S.shapes.length + S.lights.length;
+  $('exemplo').hidden = !S.example;
+}
+
+function clampv(v, sp) {
+  if (sp.int) v = Math.round(v);
+  if (sp.min != null && v < sp.min) v = sp.min;
+  if (sp.max != null && v > sp.max) v = sp.max;
+  return v;
+}
+function numField(o, sp) {
+  const id = 'p-' + sp.k;
+  const input = h('input', { id, type: 'number', step: sp.step || 0.1, value: fmt(o[sp.k]), inputmode: 'decimal' });
+  if (sp.min != null) input.min = sp.min; if (sp.max != null) input.max = sp.max;
+  input.addEventListener('input', () => { let v = parseFloat(input.value); if (!isFinite(v)) return; o[sp.k] = clampv(v, sp); touch(); });
+  input.addEventListener('change', () => { input.value = fmt(o[sp.k]); commit(); });
+  const lab = h('label', { class: 'scrub', for: id, title: 'Arraste para ajustar' }, sp.l);
+  lab.addEventListener('pointerdown', e => {
+    e.preventDefault(); lab.setPointerCapture(e.pointerId);
+    const x0 = e.clientX, v0 = o[sp.k]; let moved = false;
+    const mvf = ev => {
+      const dx = ev.clientX - x0; if (Math.abs(dx) > 2) moved = true; if (!moved) return;
+      let v = v0 + dx * (sp.sens || 0.02) * (ev.shiftKey ? 5 : 1);
+      v = clampv(Math.round(v * 1000) / 1000, sp); o[sp.k] = v; input.value = fmt(v); touch();
+    };
+    const up = ev => { lab.removeEventListener('pointermove', mvf); lab.removeEventListener('pointerup', up); if (moved) commit(); else input.focus(); };
+    lab.addEventListener('pointermove', mvf); lab.addEventListener('pointerup', up);
+  });
+  return h('div', { class: 'f' }, lab, input);
+}
+const group = (title, specs, o) => h('div', { class: 'grp' }, h('div', { class: 'lbl' }, title), h('div', { class: 'f3' }, specs.map(sp => numField(o, sp))));
+
+function refreshProps() {
+  const pane = $('pane-obj'); pane.textContent = '';
+  const o = item();
+  if (!o) { pane.append(h('p', { class: 'empty' }, 'Nada selecionado. Clique em uma forma no viewport ou na lista, ou adicione uma nova.')); return; }
+  const isS = sel.k === 's';
+  pane.append(h('div', { class: 'grp' },
+    h('label', { class: 'lbl', for: 'p-name' }, 'Nome (vira variável no código)'),
+    h('input', { id: 'p-name', type: 'text', value: o.name, maxlength: '40', autocomplete: 'off', spellcheck: 'false',
+      oninput: e => { o.name = e.target.value; refreshList(); touch(); }, onchange: () => commit() })));
+  pane.append(group('Posição', [{ k: 'x', l: 'X' }, { k: 'y', l: 'Y' }, { k: 'z', l: 'Z' }].map(p => Object.assign(p, { step: 0.25, sens: 0.02 })), o));
+  if (isS) {
+    pane.append(group('Tamanho', SHAPES[o.type].fields.map(f => Object.assign({ step: 0.1, sens: 0.01 }, f)), o));
+    pane.append(group('Rotação (graus)', [{ k: 'ax', l: 'X' }, { k: 'ay', l: 'Y' }, { k: 'az', l: 'Z' }].map(p => Object.assign(p, { step: 5, sens: 1 })), o));
+  } else {
+    pane.append(group('Luz', [{ k: 'intensidade', l: 'Intensidade', min: 0, max: 8, step: 0.1, sens: 0.01 }, { k: 'alcance', l: 'Alcance', min: 0.5, max: 200, step: 0.5, sens: 0.05 }], o));
+  }
+  const hex = h('span', { class: 'hexv' }, o.color);
+  pane.append(h('div', { class: 'grp' }, h('label', { class: 'lbl', for: 'p-color' }, 'Cor'),
+    h('div', { class: 'crow' }, h('input', { id: 'p-color', type: 'color', value: o.color,
+      oninput: e => { o.color = e.target.value; hex.textContent = o.color; refreshList(); touch(); }, onchange: () => commit() }), hex)));
+  if (isS) {
+    const bs = ['OBB', 'AABB'].map(c => h('button', { class: 'btn', type: 'button', 'aria-pressed': o.col === c ? 'true' : 'false', onclick: () => {
+      o.col = c; bs.forEach((b, i) => b.setAttribute('aria-pressed', ['OBB', 'AABB'][i] === c ? 'true' : 'false')); touch(); commit();
+    } }, c));
+    pane.append(h('div', { class: 'grp' }, h('div', { class: 'lbl' }, 'Colisão'), h('div', { class: 'seg' }, bs),
+      h('p', { class: 'note', style: 'margin:0' }, 'OBB gira junto com a forma. AABB fica alinhada aos eixos.')));
+  }
+  pane.append(h('div', { class: 'brow' },
+    h('button', { class: 'btn', type: 'button', html: svg('dup') + ' Duplicar', onclick: dupItem }),
+    h('button', { class: 'btn danger', type: 'button', html: svg('del') + ' Excluir', onclick: delItem })));
+}
+function syncProps() {
+  const o = item(); if (!o) return;
+  const keys = sel.k === 's' ? ['x','y','z','ax','ay','az'] : ['x','y','z'];
+  for (const k of keys) { const el = $('p-' + k); if (el && document.activeElement !== el) el.value = fmt(o[k]); }
+}
+
+function setRightTab(t) {
+  const obj = t === 'obj';
+  $('tab-obj').setAttribute('aria-selected', obj); $('tab-cena').setAttribute('aria-selected', !obj);
+  $('pane-obj').hidden = !obj; $('pane-cena').hidden = obj;
+}
+function setCodeTab(t) {
+  const code = t === 'code';
+  $('tab-code').setAttribute('aria-selected', code); $('tab-json').setAttribute('aria-selected', !code);
+  $('pane-code').hidden = !code; $('pane-json').hidden = code; $('btn-copy').hidden = !code;
+  if (!code) refreshJson();
+}
+
+/* ---------- painel Cena e opcoes ---------- */
+const sceneBinds = [['s-lx','lx'],['s-ly','ly'],['s-lz','lz'],['s-cx','cx'],['s-cy','cy'],['s-cz','cz'],['s-cyaw','cyaw'],['s-cpitch','cpitch'],['s-chaoy','chaoY']];
+function syncScene() {
+  const sc = S.scene;
+  $('s-amb').value = sc.ambiente; $('s-amb-v').textContent = Math.round(sc.ambiente * 255) + '/255';
+  sceneBinds.forEach(([id, k]) => { $(id).value = fmt(sc[k]); });
+  $('s-chao').checked = sc.chao;
+  const o = S.opts;
+  $('o-fn').value = o.fn; $('o-prefix').value = o.prefix; $('o-cam').value = o.cam;
+  ['inc','iniciar','loop','colcam','omit'].forEach(k => { $('o-' + k).checked = !!o[k]; });
+  $('o-loop').disabled = !o.iniciar;
+}
+function bindScene() {
+  $('s-amb').addEventListener('input', e => { S.scene.ambiente = parseFloat(e.target.value); $('s-amb-v').textContent = Math.round(S.scene.ambiente * 255) + '/255'; touch(); });
+  $('s-amb').addEventListener('change', commit);
+  sceneBinds.forEach(([id, k]) => {
+    $(id).addEventListener('input', e => { const v = parseFloat(e.target.value); if (!isFinite(v)) return; S.scene[k] = v; touch(); });
+    $(id).addEventListener('change', commit);
+  });
+  $('s-chao').addEventListener('change', e => { S.scene.chao = e.target.checked; touch(); commit(); });
+  $('s-vista').addEventListener('click', () => {
+    camSetup();
+    S.scene.cx = Math.round(E[0] * 100) / 100; S.scene.cy = Math.round(E[1] * 100) / 100; S.scene.cz = Math.round(E[2] * 100) / 100;
+    S.scene.cyaw = Math.round(((ed.yaw % 360) + 360) % 360 * 10) / 10; S.scene.cpitch = Math.round(ed.pitch * 10) / 10;
+    syncScene(); touch(); commit(); toast('Câmera inicial atualizada.');
+  });
+  [['o-fn','fn'],['o-prefix','prefix'],['o-cam','cam']].forEach(([id, k]) => {
+    $(id).addEventListener('input', e => { S.opts[k] = e.target.value; scheduleCode(); scheduleSave(); });
+    $(id).addEventListener('change', commit);
+  });
+  ['inc','iniciar','loop','colcam','omit'].forEach(k => {
+    $('o-' + k).addEventListener('change', e => { S.opts[k] = e.target.checked; $('o-loop').disabled = !S.opts.iniciar; scheduleCode(); commit(); });
+  });
+}
+
+/* ---------- codigo ---------- */
+let codeT = 0, lastCode = '';
+function scheduleCode() { clearTimeout(codeT); codeT = setTimeout(refreshCode, 60); }
+function hl(code) {
+  const esc = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return esc.replace(/(\/\/[^\n]*)|("(?:[^"\\\n]|\\.)*")|(#include)|\b(\d+(?:\.\d+)?f?)\b|\b(void|int|float|bool|const|true|false|nullptr)\b|\b(Form3d|Cam3d|fb_cores|janela|FPS|AABB|OBB)\b/g,
+    (m, c, s, inc, n, k, t) => c ? '<span class="tk-c">' + c + '</span>' : s ? '<span class="tk-s">' + s + '</span>' : inc ? '<span class="tk-k">' + inc + '</span>' :
+      n ? '<span class="tk-n">' + n + '</span>' : k ? '<span class="tk-k">' + k + '</span>' : '<span class="tk-t">' + t + '</span>');
+}
+function refreshCode() {
+  lastCode = genCode(S);
+  $('out-code').innerHTML = hl(lastCode);
+  if (!$('pane-json').hidden) refreshJson();
+}
+function refreshJson() {
+  const t = $('json-text'); if (document.activeElement === t) return;
+  t.value = JSON.stringify(snapData(), null, 1);
+}
+async function copyText(text, el, okMsg) {
+  try { await navigator.clipboard.writeText(text); toast(okMsg); }
+  catch (e) {
+    const r = document.createRange(); r.selectNodeContents(el);
+    const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+    toast('Não consegui copiar sozinho. O texto foi selecionado: use Ctrl+C.');
+  }
+}
+
+/* ---------- interacao no viewport ---------- */
+function rayAt(mx, my) {
+  camSetup();
+  const f = (cssW / 2) / TANH, dv = [(mx - cssW / 2) / f, -(my - cssH / 2) / f, 1];
+  const d = [MV[0][0]*dv[0] + MV[1][0]*dv[1] + MV[2][0]*dv[2], MV[0][1]*dv[0] + MV[1][1]*dv[1] + MV[2][1]*dv[2], MV[0][2]*dv[0] + MV[1][2]*dv[1] + MV[2][2]*dv[2]];
+  return { o: E.slice(), d };
+}
+function hitPlaneY(ray, y) {
+  if (Math.abs(ray.d[1]) < 1e-4) return null;
+  const t = (y - ray.o[1]) / ray.d[1]; if (t < 0) return null;
+  return [ray.o[0] + ray.d[0] * t, ray.o[2] + ray.d[2] * t];
+}
+function pick(mx, my) {
+  for (const l of lightScreen) if (Math.hypot(l.x - mx, l.y - my) < 12) return { k: 'l', id: l.id };
+  const ix = Math.floor(mx * lowW / cssW), iy = Math.floor(my * lowH / cssH);
+  if (ix >= 0 && iy >= 0 && ix < lowW && iy < lowH) { const id = idb[iy * lowW + ix]; if (id >= 0) return { k: 's', id }; }
+  return null;
+}
+let drag = null;
+cC.addEventListener('contextmenu', e => e.preventDefault());
+cC.addEventListener('pointerdown', e => {
+  cC.focus(); cC.setPointerCapture(e.pointerId);
+  const r = cC.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+  drag = { x: e.clientX, y: e.clientY, mode: 'orbit', moved: false, hit: false };
+  if (e.button === 1 || e.button === 2 || (e.button === 0 && e.altKey)) { drag.mode = 'pan'; return; }
+  if (e.button !== 0) return;
+  const p = pick(mx, my);
+  if (!p) return;
+  drag.hit = true;
+  if (!sel || sel.k !== p.k || sel.id !== p.id) select(p);
+  const o = item(); if (!o) return;
+  if (e.shiftKey) { drag.mode = 'lift'; drag.y0 = o.y; return; }
+  const hp = hitPlaneY(rayAt(mx, my), o.y);
+  if (!hp) return;
+  drag.mode = 'move'; drag.off = [o.x - hp[0], o.z - hp[1]];
+});
+cC.addEventListener('pointermove', e => {
+  const r = cC.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+  if (!drag) { cC.style.cursor = pick(mx, my) ? 'move' : 'default'; return; }
+  const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+  if (!drag.moved && Math.hypot(dx, dy) < 3) return;
+  drag.moved = true;
+  if (drag.mode === 'orbit') {
+    ed.yaw += dx * 0.4; ed.pitch = Math.max(-89, Math.min(89, ed.pitch - dy * 0.4));
+    drag.x = e.clientX; drag.y = e.clientY; cC.style.cursor = 'grabbing'; requestRender();
+  } else if (drag.mode === 'pan') {
+    const y = ed.yaw * D2R, p = ed.pitch * D2R, k = 2 * ed.dist * TANH / cssW;
+    const right = [Math.cos(y), 0, -Math.sin(y)], up = [-Math.sin(p) * Math.sin(y), Math.cos(p), -Math.sin(p) * Math.cos(y)];
+    ed.tx += (-dx * right[0] + dy * up[0]) * k; ed.ty += (-dx * right[1] + dy * up[1]) * k; ed.tz += (-dx * right[2] + dy * up[2]) * k;
+    drag.x = e.clientX; drag.y = e.clientY; requestRender();
+  } else {
+    const o = item(); if (!o) return;
+    if (drag.mode === 'move') {
+      const hp = hitPlaneY(rayAt(mx, my), o.y);
+      if (hp) { o.x = snapV(hp[0] + drag.off[0]); o.z = snapV(hp[1] + drag.off[1]); }
+    } else {
+      camSetup();
+      const dist = Math.max(0.5, mv(MV, [o.x - E[0], o.y - E[1], o.z - E[2]])[2]);
+      o.y = snapV(drag.y0 - (e.clientY - drag.y) * 2 * dist * TANH / cssW);
+    }
+    syncProps(); touch();
+  }
+});
+const endDrag = () => {
+  if (!drag) return;
+  if (!drag.moved && drag.mode === 'orbit' && !drag.hit) { sel = null; refreshList(); refreshProps(); requestRender(); }
+  if (drag.moved && (drag.mode === 'move' || drag.mode === 'lift')) commit();
+  drag = null; cC.style.cursor = 'default';
+};
+cC.addEventListener('pointerup', endDrag);
+cC.addEventListener('pointercancel', endDrag);
+cC.addEventListener('wheel', e => { e.preventDefault(); ed.dist = Math.max(1, Math.min(200, ed.dist * Math.exp(e.deltaY * 0.0012))); requestRender(); }, { passive: false });
+cC.addEventListener('keydown', e => {
+  const o = item(), step = (snapStep() || 0.25) * (e.shiftKey ? 4 : 1);
+  if (e.key === 'Escape') { sel = null; refreshList(); refreshProps(); requestRender(); return; }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') { e.preventDefault(); dupItem(); return; }
+  if (e.key.toLowerCase() === 'f' && !e.ctrlKey && !e.metaKey) { frame(); return; }
+  if (!o) return;
+  if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); delItem(); return; }
+  const mvk = { ArrowLeft: ['x', -1], ArrowRight: ['x', 1], ArrowUp: ['z', 1], ArrowDown: ['z', -1], PageUp: ['y', 1], PageDown: ['y', -1] }[e.key];
+  if (mvk) { e.preventDefault(); o[mvk[0]] = Math.round((o[mvk[0]] + mvk[1] * step) * 1000) / 1000; syncProps(); touch(); commit(); }
+});
+
+function frame() {
+  const o = item();
+  if (o) { ed.tx = o.x; ed.ty = o.y; ed.tz = o.z; ed.dist = Math.max(4, ed.dist); }
+  else if (S.shapes.length) {
+    let mn = [1e9, 1e9, 1e9], mx = [-1e9, -1e9, -1e9];
+    for (const s of S.shapes) { const e = Math.max(s.w, s.h, s.d, s.r * 2) / 2; ['x','y','z'].forEach((k, i) => { mn[i] = Math.min(mn[i], s[k] - e); mx[i] = Math.max(mx[i], s[k] + e); }); }
+    ed.tx = (mn[0] + mx[0]) / 2; ed.ty = (mn[1] + mx[1]) / 2; ed.tz = (mn[2] + mx[2]) / 2;
+    ed.dist = Math.max(6, Math.min(80, Math.hypot(mx[0] - mn[0], mx[1] - mn[1], mx[2] - mn[2]) * 0.8));
+  }
+  requestRender();
+}
+
+/* ---------- boot ---------- */
+function refreshAll() { refreshList(); refreshProps(); syncScene(); refreshCode(); requestRender(); }
+function boot() {
+  $('addgrid').append(...Object.keys(SHAPES).map(t => h('button', { class: 'addbtn', type: 'button', html: svg(t) + '<span>' + SHAPES[t].label + '</span>', onclick: () => addShape(t) })),
+    h('button', { class: 'addbtn', type: 'button', html: svg('luz') + '<span>Luz</span>', onclick: addLight }));
+  $('btn-undo').onclick = undo; $('btn-redo').onclick = redo;
+  $('btn-limpar').onclick = () => { S.shapes = []; S.lights = []; S.example = false; sel = null; meshCache.clear(); refreshAll(); commit(); };
+  $('tab-obj').onclick = () => setRightTab('obj'); $('tab-cena').onclick = () => setRightTab('cena');
+  $('tab-code').onclick = () => setCodeTab('code'); $('tab-json').onclick = () => setCodeTab('json');
+  $('btn-copy').onclick = () => copyText(lastCode, $('out'), 'Código copiado.');
+  $('btn-json-copy').onclick = () => copyText($('json-text').value, $('json-text'), 'Projeto copiado.');
+  $('btn-json-load').onclick = () => {
+    try {
+      const st = normalize(JSON.parse($('json-text').value));
+      S.nextId = st.nextId; S.example = st.example; S.shapes = st.shapes; S.lights = st.lights; S.scene = st.scene; S.opts = st.opts;
+      sel = null; meshCache.clear(); refreshAll(); commit(); toast('Projeto carregado.');
+    } catch (e) { toast('Não foi possível carregar: ' + e.message); }
+  };
+  $('v-frame').onclick = frame;
+  $('v-front').onclick = () => { ed.yaw = 0; ed.pitch = 0; requestRender(); };
+  $('v-side').onclick = () => { ed.yaw = -90; ed.pitch = 0; requestRender(); };
+  $('v-top').onclick = () => { ed.yaw = 0; ed.pitch = -89; requestRender(); };
+  $('v-zin').onclick = () => { ed.dist = Math.max(1, ed.dist / 1.25); requestRender(); };
+  $('v-zout').onclick = () => { ed.dist = Math.min(200, ed.dist * 1.25); requestRender(); };
+  $('v-retro').onclick = e => { retro = !retro; e.currentTarget.setAttribute('aria-pressed', retro); e.currentTarget.textContent = retro ? 'Retrô' : 'Nítido'; resize(); };
+  $('snap').addEventListener('change', () => {});
+  bindScene();
+  document.addEventListener('keydown', e => {
+    const t = e.target, typing = t && (t.tagName === 'TEXTAREA' || (t.tagName === 'INPUT' && /^(text|number|search)$/.test(t.type)));
+    if (typing || !(e.ctrlKey || e.metaKey)) return;
+    const k = e.key.toLowerCase();
+    if (k === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
+    else if (k === 'y' || (k === 'z' && e.shiftKey)) { e.preventDefault(); redo(); }
+  });
+  new ResizeObserver(resize).observe(vpEl);
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', requestRender);
+  new MutationObserver(requestRender).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  setCodeTab('code'); setRightTab('obj');
+  updUndo(); refreshAll(); resize();
+}
+boot();
+})();
+</script>
+
+</body></html>
