@@ -1,0 +1,674 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Editor de Formas 3D · BirdEngine</title>
+<style>
+:root{--bg:#f1f1ee;--pn:#e4e4df;--fg:#1d1d1b;--bd:#b9b9b2;--ac:#c2410c;--gr:#d0d0c8;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#17171a;--pn:#222226;--fg:#e8e8e4;--bd:#3a3a40;--ac:#fb923c;--gr:#2b2b31;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#17171a;--pn:#222226;--fg:#e8e8e4;--bd:#3a3a40;--ac:#fb923c;--gr:#2b2b31;color-scheme:dark}
+html,body{height:100%;margin:0}
+body{display:flex;flex-direction:column;background:var(--bg);color:var(--fg);font:13px system-ui,sans-serif}
+header{display:flex;flex-wrap:wrap;gap:4px;align-items:center;padding:6px;background:var(--pn);border-bottom:1px solid var(--bd)}
+button,select,input,textarea{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--bd);border-radius:4px;padding:3px 6px}
+button{cursor:pointer}button.on{background:var(--ac);color:#fff;border-color:var(--ac)}button.primary{font-weight:600}
+header label{display:flex;align-items:center;gap:4px}
+main{flex:1;display:grid;grid-template-columns:minmax(0,1fr) 330px;min-height:0}
+.l{display:grid;grid-template-columns:1fr 1fr;min-height:0;border-right:1px solid var(--bd)}
+.l.a,.l.b{grid-template-columns:1fr}.l.a #p3,.l.b #p2{display:none}
+.pane{position:relative;min-width:0;min-height:0}.pane+.pane{border-left:1px solid var(--bd)}
+canvas.view{width:100%;height:100%;display:block;touch-action:none}
+.tag{position:absolute;left:8px;top:7px;padding:3px 6px;background:color-mix(in srgb,var(--pn) 88%,transparent);border:1px solid var(--bd);border-radius:3px;font-size:11px;pointer-events:none}
+.hint{position:absolute;bottom:6px;left:8px;right:8px;opacity:.65;font-size:10px;pointer-events:none}
+aside{overflow:auto;padding:8px;background:var(--pn)}
+aside h4{margin:12px 0 4px;font-size:12px;text-transform:uppercase;opacity:.7}
+aside label{display:flex;justify-content:space-between;align-items:center;gap:6px;margin:2px 0}
+aside label input[type=number],aside label input[type=text],aside label select{width:150px;box-sizing:border-box}
+aside label input[type=file]{width:150px}
+textarea{width:100%;height:150px;box-sizing:border-box;font:11px monospace}
+#ac{width:100%;height:auto;border:1px solid var(--bd);cursor:crosshair;image-rendering:pixelated;display:block;margin:4px 0}
+.objrow{border:1px solid var(--bd);padding:4px 6px;margin:3px 0;border-radius:4px;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.objrow.sel{border-color:var(--ac);background:color-mix(in srgb,var(--ac) 14%,transparent)}
+.small{font-size:11px;opacity:.7;line-height:1.4;margin:3px 0}
+.box{border:1px solid var(--bd);border-radius:4px;padding:4px;margin:4px 0}
+hr{border:0;border-top:1px solid var(--bd);margin:8px 0}
+table{border-collapse:collapse;font-size:11px;width:100%}td,th{padding:1px 2px}
+@media (max-width:850px){main{grid-template-columns:1fr;grid-template-rows:62vh auto}.l{border-right:0;grid-template-columns:1fr;grid-template-rows:1fr 1fr}.l.a,.l.b{grid-template-rows:1fr}.pane+.pane{border-left:0;border-top:1px solid var(--bd)}aside{border-top:1px solid var(--bd)}}
+</style>
+</head>
+<body>
+<header>
+ <button data-t="sel" class="on">Selecionar</button>
+ <button data-t="cubo">Cubo</button>
+ <button data-t="esfera">Esfera</button>
+ <button data-t="cone">Cone</button>
+ <button data-t="cilindro">Cilindro</button>
+ <button data-t="poligono">Polígono</button>
+ <button data-add="png">+ PNG 2D</button>
+ <button data-add="modelo">+ OBJ / FBX</button>
+ <button data-vw="" class="on">2D+3D</button><button data-vw="a">2D</button><button data-vw="b">3D</button>
+ <label>y <input id="yb" type="number" step="any" value="-0.25" style="width:60px"></label>
+ <label>grade <select id="sn"><option value="0">livre</option><option value=".01">0,01</option><option value=".05" selected>0,05</option><option value=".1">0,1</option><option value=".25">0,25</option></select></label>
+ <label>prévia <select id="pg"></select></label>
+ <button id="bcp">Copiar</button><button id="bpa">Colar</button><button id="dup">Duplicar</button><button id="del">Apagar</button>
+ <button id="lp">Limpar</button>
+ <button class="primary" id="gerar">Gerar Lua</button>
+</header>
+<main>
+ <div class="l" id="views">
+  <div class="pane" id="p2"><canvas id="plane" class="view"></canvas><span class="tag">Planta da mão · X / Z (frente = para baixo)</span><span class="hint">Arraste para posicionar · Ctrl/Shift soma · arraste no vazio seleciona vários · roda = zoom · botão direito = mover vista · polígono: clique os pontos e Enter / duplo clique · Ctrl+C / Ctrl+V</span></div>
+  <div class="pane" id="p3"><canvas id="canvas3d" class="view"></canvas><span class="tag">Prévia 3D · câmera orbitável</span><span class="hint">Arraste = orbitar · roda = zoom · clique seleciona (Ctrl/Shift soma)</span></div>
+ </div>
+ <aside>
+  <h4>Peças da mão</h4><div id="objects"></div>
+  <div class="small">Grupo 0 fica sempre visível. Grupos 1 a 31 são peças de armas selecionáveis.</div>
+  <h4>Objeto selecionado</h4><div id="pr"></div><div id="pp"></div>
+  <h4>Atlas / texturas</h4>
+  <input id="fi" type="file" accept="image/png,image/jpeg,image/webp" style="width:100%;box-sizing:border-box">
+  <select id="as" style="width:100%;margin:4px 0"></select>
+  <button id="da">Remover atlas</button>
+  <div id="ai"></div>
+  <canvas id="ac" width="256" height="128"></canvas>
+  <div id="ti" class="small"></div>
+  <h4>Armas por grupo</h4><div id="weapon"></div>
+  <h4>Lua gerado</h4><textarea id="code" readonly></textarea><button id="copy">Copiar código</button>
+  <p class="small">Copie as texturas e modelos para os caminhos configurados no projeto. Modelos importados: OBJ ou FBX binário. A arma usa hitscan; o script do jogo aplica o dano retornado por <code>mao:usar</code>.</p>
+ </aside>
+</main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/fflate.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FBXLoader.js"></script>
+<script>
+const $=s=>document.querySelector(s),D=Math.PI/180;
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v)),num=(v,d=0)=>Number.isFinite(+v)?+v:d,n=v=>+num(v).toFixed(4),fmt=v=>String(n(v));
+const css=a=>getComputedStyle(document.documentElement).getPropertyValue(a).trim();
+const lua=s=>'"'+String(s).replace(/\\/g,'\\\\').replace(/"/g,'\\"').replace(/\n/g,'\\n')+'"';
+const NOMES={cubo:'Cubo',esfera:'Esfera',cone:'Cone',cilindro:'Cilindro',poligono:'Polígono',png:'Sprite 2D',modelo:'Modelo'};
+const isR=o=>o.type==='esfera'||o.type==='cone'||o.type==='cilindro';
+const defW=()=>({type:'LONGA',damage:20,range:40,interval:.25,mag:30,reserve:90,recoil:1});
+const base=t=>{const o={type:t,name:NOMES[t]||t,x:0,y:-.25,z:1.25,rx:0,ry:0,rz:0,group:1,atlas:-1,c:0,l:0,w:.35,h:.35,d:.2,r:.14,scale:1,height:.18,pts:[],faceTiles:{},path:''};if(t==='png')Object.assign(o,{x:.62,y:.58,w:.32,h:.36});return o};
+const KEY='bird.formas3d.v3';
+const tw=a=>Math.max(1,Math.floor(num(a.fw,16))||1),th=a=>Math.max(1,Math.floor(num(a.fh,16))||1);
+
+/* ---------- estado ---------- */
+let S={items:[],atlases:[],weapons:{}};
+try{
+ const j=JSON.parse(localStorage.getItem(KEY)||localStorage.getItem('bird.formas3d.v2')||'null');
+ if(j&&Array.isArray(j.items)){
+  S.items=j.items.map(o=>Object.assign(base(o.type||'cubo'),o));
+  S.atlases=(j.atlases||[]).map(a=>({name:a.name||'atlas',path:a.path||'assets/'+(a.name||'atlas.png'),fw:Math.max(1,+a.fw||16),fh:Math.max(1,+a.fh||16),src:a.src||''}));
+  S.weapons=j.weapons||{};
+ }
+}catch(e){}
+S.items.forEach(o=>{o.group=clamp(Math.floor(num(o.group,1)),0,31);o.faceTiles=o.faceTiles||{};if(!Array.isArray(o.pts))o.pts=[];o.scale=num(o.scale,1)||1;o.height=num(o.height,.18)});
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S,(k,v)=>k==='img'?undefined:(k==='src'&&typeof v==='string'&&v.length>600000?'':v)))}catch(e){}};
+const ms=new Set();let sel=-1,tool='sel',pts=[],drag=null,mo=[0,0],snap=.05,cur={a:0,c:0,l:0,f:'tudo'},CB=[],binds=[],tx={},models={},viewMode='',prevG=-1;
+const V={x:0,z:1.1,k:150};
+const cv=$('#plane');
+const cl=o=>JSON.parse(JSON.stringify(o));
+const cur1=()=>sel>=0?S.items[sel]||null:null;
+const sels=()=>[...ms].sort((a,b)=>a-b);
+function ss(i,add){
+ if(i<0){if(!add){ms.clear();sel=-1}return}
+ if(add){if(ms.has(i)){ms.delete(i);sel=ms.size?[...ms].pop():-1}else{ms.add(i);sel=i}}
+ else{ms.clear();ms.add(i);sel=i}
+}
+const sg=v=>snap?Math.round(v/snap)*snap:v;
+const hue=o=>(((+o.c||0)*47+(+o.l||0)*83+Math.max(0,+o.atlas||0)*131)%360);
+const visible=o=>prevG<0||o.group===0||o.group===prevG;
+
+/* ---------- geometria 2D ---------- */
+const rot2=(x,z,a)=>{const c=Math.cos(a),s=Math.sin(a);return[c*x+s*z,-s*x+c*z]};
+function modelSize(o){const m=models[o.path];if(!m)return[.3,.3];const b=new THREE.Box3().setFromObject(m),s=new THREE.Vector3();b.getSize(s);return[Math.max(.02,s.x*o.scale),Math.max(.02,s.z*o.scale)]}
+function lpts(o){
+ if(o.type==='poligono')return o.pts;
+ let w,d;
+ if(o.type==='cubo'){w=o.w;d=o.d}
+ else if(o.type==='modelo'){const m=modelSize(o);w=m[0];d=m[1]}
+ else{w=d=o.r*2}
+ w=Math.abs(w);d=Math.abs(d);
+ return[[-w/2,-d/2],[w/2,-d/2],[w/2,d/2],[-w/2,d/2]];
+}
+const wpts=o=>lpts(o).map(p=>{const r=rot2(p[0],p[1],num(o.ry)*D);return[o.x+r[0],o.z+r[1]]});
+const toLocal=(o,x,z)=>rot2(x-o.x,z-o.z,-num(o.ry)*D);
+function inPoly(x,z,p){let v=false;for(let i=0,j=p.length-1;i<p.length;j=i++){if((p[i][1]>z)!==(p[j][1]>z)&&x<(p[j][0]-p[i][0])*(z-p[i][1])/(p[j][1]-p[i][1])+p[i][0])v=!v}return v}
+function hit(o,x,z){if(o.type==='png')return false;if(isR(o))return Math.hypot(x-o.x,z-o.z)<=Math.max(o.r,6/V.k);return inPoly(x,z,wpts(o))}
+function pathItem(x,o){x.beginPath();if(isR(o))x.arc(o.x,o.z,Math.max(.001,o.r),0,7);else{wpts(o).forEach((p,i)=>i?x.lineTo(p[0],p[1]):x.moveTo(p[0],p[1]));x.closePath()}}
+const wp=e=>{const r=cv.getBoundingClientRect();return[(e.clientX-r.left-r.width/2)/V.k+V.x,(e.clientY-r.top-r.height/2)/V.k+V.z]};
+const hud=()=>{const r=cv.getBoundingClientRect(),w=Math.min(170,r.width*.45);return{x:r.width-w-8,y:8,w,h:w*.75}};
+
+/* ---------- campos de formulário (com vínculo) ---------- */
+function fld(el,lb,o,k,ty,on){
+ const l=document.createElement('label'),i=document.createElement('input');l.append(lb);
+ const fire=()=>(on||upd)();
+ if(ty==='b'){i.type='checkbox';i.checked=!!o[k];i.onchange=()=>{o[k]=i.checked?1:0;fire()}}
+ else if(ty==='t'){i.type='text';i.value=o[k]??'';i.oninput=()=>{o[k]=i.value;fire()}}
+ else{
+  i.type='number';i.step='any';i.value=n(o[k]);
+  i.oninput=()=>{const v=parseFloat(i.value);if(!Number.isFinite(v))return;o[k]=v;fire()};
+  i.onblur=()=>{i.value=n(o[k])};
+ }
+ l.append(i);el.append(l);binds.push({i,o,k,ty:ty||'n'});return i;
+}
+function refreshBinds(){
+ binds=binds.filter(b=>b.i.isConnected);
+ binds.forEach(b=>{if(b.i===document.activeElement)return;if(b.ty==='b')b.i.checked=!!b.o[b.k];else if(b.ty==='t')b.i.value=b.o[b.k]??'';else b.i.value=n(b.o[b.k])});
+}
+function btn(el,t,f){const b=document.createElement('button');b.textContent=t;b.onclick=f;el.append(b);return b}
+function choose(el,lb,o,k,opts,on){
+ const l=document.createElement('label'),s=document.createElement('select');l.append(lb);
+ opts.forEach(([v,t])=>s.add(new Option(t,String(v))));s.value=String(o[k]);
+ s.onchange=()=>{const f=opts.find(q=>String(q[0])===s.value);o[k]=f?f[0]:s.value;(on||upd)()};
+ l.append(s);el.append(l);return s;
+}
+function fileRow(el,lb,accept,fn){
+ const l=document.createElement('label'),i=document.createElement('input');l.append(lb);i.type='file';i.accept=accept;
+ i.onchange=()=>{if(i.files[0])fn(i.files[0])};l.append(i);el.append(l);
+}
+
+/* ---------- atualização ---------- */
+function upd(){paint2d();build3();save();gen();refreshBinds()}
+function full(){list();props();atl();wpanel();upd()}
+function onSel(){const o=cur1();if(o&&o.atlas>=0)cur.a=o.atlas;list();props();atl();wpanel();paint2d();build3()}
+
+/* ---------- lista de peças ---------- */
+function list(){
+ const el=$('#objects');el.innerHTML='';
+ if(!S.items.length)el.textContent='Nenhuma peça. Escolha uma ferramenta e arraste na planta.';
+ S.items.forEach((o,i)=>{
+  const d=document.createElement('div');d.className='objrow'+(ms.has(i)?' sel':'');
+  d.textContent=`${i+1}. ${o.name} · ${NOMES[o.type]} · g${o.group}`;
+  d.onclick=e=>{ss(i,e.shiftKey||e.ctrlKey||e.metaKey);onSel()};el.append(d);
+ });
+ const g=[...new Set(S.items.map(o=>o.group).filter(v=>v>=1))].sort((a,b)=>a-b),s=$('#pg');s.innerHTML='';
+ s.add(new Option('todos',-1));g.forEach(v=>s.add(new Option('grupo '+v,v)));
+ if(prevG>=0&&!g.includes(prevG))prevG=-1;s.value=prevG;
+}
+$('#pg').onchange=e=>{prevG=+e.target.value;paint2d();build3()};
+
+/* ---------- propriedades ---------- */
+function faceOpts(o){return o.type==='cubo'?['tudo','frente','tras','esquerda','direita','cima','baixo']:['tudo']}
+function props(){
+ const o=cur1(),el=$('#pr'),pe=$('#pp');binds=[];el.innerHTML='';pe.innerHTML='';
+ if(!o){el.textContent=CB.length?`Nada selecionado · área de transferência: ${CB.length} peça(s)`:'Nada selecionado. Clique numa peça ou desenhe uma nova.';return}
+ if(ms.size>1){el.append(ms.size+' peças selecionadas (os campos editam só a principal) ');btn(el,'Copiar',copiar);btn(el,'Duplicar todas',dupl);btn(el,'Apagar todas',delSel);el.append(document.createElement('hr'))}
+ const t=document.createElement('b');t.textContent=`#${sel+1} · ${NOMES[o.type]}`;el.append(t);
+ fld(el,'Nome',o,'name','t',()=>{list();save();gen()});
+ fld(el,'Grupo (0–31)',o,'group','n',()=>{o.group=clamp(Math.floor(o.group)||0,0,31);list();wpanel();upd()});
+ if(o.type==='png'){
+  fileRow(el,'Imagem PNG','image/png',f=>addAtlas(f,idx=>{o.atlas=idx;cur.a=idx;cur.c=cur.l=0;full()}));
+  fld(el,'X na tela (0–1)',o,'x');fld(el,'Y na tela (0–1)',o,'y');fld(el,'Largura (0–1)',o,'w');fld(el,'Altura (0–1)',o,'h');
+ }else{
+  fld(el,'Offset X',o,'x');fld(el,'Offset Y',o,'y');fld(el,'Offset Z',o,'z');
+  fld(el,'Rotação X°',o,'rx');fld(el,'Rotação Y°',o,'ry');fld(el,'Rotação Z°',o,'rz');
+  if(o.type==='cubo'){fld(el,'Largura',o,'w');fld(el,'Altura',o,'h');fld(el,'Profundidade',o,'d')}
+  else if(o.type==='esfera')fld(el,'Raio',o,'r');
+  else if(o.type==='cone'||o.type==='cilindro'){fld(el,'Raio',o,'r');fld(el,'Altura',o,'h')}
+  else if(o.type==='poligono')fld(el,'Espessura (altura)',o,'height');
+  else if(o.type==='modelo'){
+   fld(el,'Escala',o,'scale');
+   fileRow(el,'Arquivo OBJ/FBX','.obj,.fbx',f=>loadModel(o,f));
+   const m=document.createElement('div');m.className='small';
+   m.textContent=o.path?(models[o.path]?'Arquivo: '+o.path:'Arquivo: '+o.path+' — escolha o arquivo de novo para ver a prévia.'):'Escolha um arquivo OBJ ou FBX.';el.append(m);
+  }
+ }
+ choose(el,'Atlas',o,'atlas',[[-1,'Sem textura'],...S.atlases.map((a,i)=>[i,`${i+1} · ${a.name}`])],()=>{if(o.atlas>=0)cur.a=o.atlas;atl();upd();props()});
+ const fo=faceOpts(o),fs=document.createElement('select');
+ fo.forEach(v=>fs.add(new Option('tile: '+({tras:'trás'}[v]||v),v)));
+ if(!fo.includes(cur.f))cur.f='tudo';fs.value=cur.f;fs.onchange=()=>{cur.f=fs.value};el.append(fs);
+ const inf=document.createElement('div');inf.className='small';
+ inf.textContent='tile geral '+o.c+', '+o.l+Object.keys(o.faceTiles||{}).map(f=>` · ${f} ${o.faceTiles[f].c},${o.faceTiles[f].l}`).join('')+' — clique no atlas abaixo para aplicar';el.append(inf);
+ el.append(document.createElement('br'));
+ btn(el,'Copiar',copiar);btn(el,'Duplicar',dupl);btn(el,'Apagar',delSel);
+ if(o.type==='poligono')ppanel(o,pe);
+}
+function ppanel(o,pe){
+ pe.append(document.createElement('hr'));pe.append(`Pontos do polígono (${o.pts.length})`);
+ const h=document.createElement('div');h.className='small';
+ h.textContent='Arraste os pontos na planta · duplo clique na aresta cria ponto · duplo clique no ponto apaga. Coordenadas relativas ao offset X/Z.';pe.append(h);
+ btn(pe,'Recentralizar',()=>{
+  if(!o.pts.length)return;const X=o.pts.map(p=>p[0]),Z=o.pts.map(p=>p[1]),cx=(Math.min(...X)+Math.max(...X))/2,cz=(Math.min(...Z)+Math.max(...Z))/2,r=rot2(cx,cz,num(o.ry)*D);
+  o.pts=o.pts.map(p=>[n(p[0]-cx),n(p[1]-cz)]);o.x=n(o.x+r[0]);o.z=n(o.z+r[1]);props();upd();
+ });
+ const t=document.createElement('table');t.innerHTML='<tr><th>#<th>x<th>z<th></tr>';
+ const ci=(arr,k)=>{const i=document.createElement('input');i.type='number';i.step='any';i.value=n(arr[k]);i.style.cssText='width:70px;padding:1px 3px;font-size:11px';
+  i.oninput=()=>{const v=parseFloat(i.value);if(!Number.isFinite(v))return;arr[k]=v;upd()};i.onblur=()=>{i.value=n(arr[k])};binds.push({i,o:arr,k,ty:'n'});return i};
+ o.pts.forEach((p,i)=>{
+  const r=t.insertRow();r.insertCell().textContent=i+1;r.insertCell().append(ci(p,0));r.insertCell().append(ci(p,1));
+  const b=document.createElement('button');b.textContent='✕';b.style.padding='0 5px';b.onclick=()=>{if(o.pts.length>3){o.pts.splice(i,1);props();upd()}};r.insertCell().append(b);
+ });
+ pe.append(t);
+}
+
+/* ---------- armas ---------- */
+function wpanel(){
+ const el=$('#weapon');el.innerHTML='';
+ const gs=new Set(S.items.map(o=>o.group).filter(g=>g>=1)),o=cur1();if(o&&o.group>=1)gs.add(o.group);
+ if(!gs.size){el.textContent='Nenhum grupo de arma (1–31) em uso.';return}
+ const on=()=>{save();gen()};
+ [...gs].sort((a,b)=>a-b).forEach(g=>{
+  const w=S.weapons[g]||(S.weapons[g]=defW()),box=document.createElement('div');box.className='box';box.append('Grupo '+g);
+  choose(box,'Tipo',w,'type',[['CURTA','Curta distância'],['LONGA','Longa distância']],on);
+  [['damage','Dano'],['range','Alcance'],['interval','Intervalo (s)'],['mag','Pente (0 ilimitado)'],['reserve','Reserva'],['recoil','Recuo (°)']].forEach(([k,t])=>fld(box,t,w,k,'n',on));
+  el.append(box);
+ });
+}
+
+/* ---------- atlas ---------- */
+function addAtlas(file,cb){
+ const r=new FileReader();
+ r.onload=()=>{const im=new Image();im.onload=()=>{
+  let ex=S.atlases.find(a=>a.name===file.name&&!a.img),idx;
+  if(ex){ex.img=im;ex.src=r.result;idx=S.atlases.indexOf(ex)}
+  else{S.atlases.push({name:file.name,path:'assets/'+file.name,fw:im.naturalWidth,fh:im.naturalHeight,img:im,src:r.result});idx=S.atlases.length-1}
+  tx={};cur.a=idx;if(cb)cb(idx);else full();
+ };im.src=r.result};
+ r.readAsDataURL(file);
+}
+$('#fi').onchange=e=>{const f=e.target.files[0];if(f)addAtlas(f,idx=>{const o=cur1();if(o){o.atlas=idx;cur.c=cur.l=0}full()});e.target.value=''};
+$('#as').onchange=e=>{cur.a=+e.target.value;atl()};
+$('#da').onclick=()=>{
+ const i=cur.a;if(!S.atlases[i])return;
+ const u=S.items.filter(o=>o.atlas===i).length;
+ if(u&&!confirm('Este atlas é usado por '+u+' peça(s). Remover mesmo assim?'))return;
+ S.atlases.splice(i,1);S.items.forEach(o=>{if(o.atlas===i)o.atlas=-1;else if(o.atlas>i)o.atlas--});
+ tx={};cur.a=Math.max(0,Math.min(i,S.atlases.length-1));cur.c=cur.l=0;full();
+};
+function atl(){
+ const s=$('#as');s.innerHTML='';S.atlases.forEach((a,i)=>s.add(new Option((i+1)+' · '+a.name,i)));
+ cur.a=S.atlases.length?clamp(cur.a,0,S.atlases.length-1):0;if(S.atlases.length)s.value=cur.a;
+ const el=$('#ai'),a=S.atlases[cur.a];el.innerHTML='';
+ if(!a){drawAtlas();return}
+ const on=()=>{save();gen()};
+ fld(el,'Caminho no jogo',a,'path','t',on);
+ fld(el,'Tile largura',a,'fw','n',()=>{tx={};drawAtlas();upd()});
+ fld(el,'Tile altura',a,'fh','n',()=>{tx={};drawAtlas();upd()});
+ drawAtlas();
+}
+function drawAtlas(){
+ const a=S.atlases[cur.a],c=$('#ac'),x=c.getContext('2d'),ti=$('#ti');
+ if(!a){x.clearRect(0,0,c.width,c.height);ti.textContent='Carregue uma imagem para criar um atlas.';return}
+ if(!a.img){x.clearRect(0,0,c.width,c.height);ti.textContent='Recarregue a imagem deste atlas (o arquivo "'+a.name+'" não ficou salvo).';return}
+ c.width=a.img.width;c.height=a.img.height;x.imageSmoothingEnabled=false;x.drawImage(a.img,0,0);
+ const fw=tw(a),fh=th(a),lw=Math.max(1,c.width/256);
+ x.strokeStyle='rgba(255,255,255,.5)';x.lineWidth=lw;x.beginPath();
+ for(let i=0;i<=c.width;i+=fw){x.moveTo(i,0);x.lineTo(i,c.height)}
+ for(let i=0;i<=c.height;i+=fh){x.moveTo(0,i);x.lineTo(c.width,i)}
+ x.stroke();x.strokeStyle='#e11d48';x.lineWidth=lw*2;x.strokeRect(cur.c*fw,cur.l*fh,fw,fh);
+ ti.textContent=`${a.name} · ${c.width}×${c.height} · tile escolhido: ${cur.c}, ${cur.l}`;
+}
+$('#ac').onclick=e=>{
+ const a=S.atlases[cur.a];if(!a||!a.img)return;
+ const c=$('#ac'),r=c.getBoundingClientRect();
+ cur.c=Math.max(0,Math.floor((e.clientX-r.left)/r.width*c.width/tw(a)));cur.l=Math.max(0,Math.floor((e.clientY-r.top)/r.height*c.height/th(a)));
+ const l=sels();
+ l.forEach(i=>{
+  const o=S.items[i],f=faceOpts(o).includes(cur.f)?cur.f:'tudo';o.atlas=cur.a;
+  if(f==='tudo'){o.c=cur.c;o.l=cur.l;o.faceTiles={}}else{o.faceTiles=o.faceTiles||{};o.faceTiles[f]={c:cur.c,l:cur.l}}
+ });
+ if(l.length)props();drawAtlas();upd();
+};
+
+/* ---------- modelos ---------- */
+function loadModel(o,f){
+ const fbx=/\.fbx$/i.test(f.name),rd=new FileReader();o.path='assets/'+f.name;
+ rd.onload=()=>{
+  try{
+   if(fbx){if(!THREE.FBXLoader)throw new Error('FBXLoader indisponível');models[o.path]=new THREE.FBXLoader().parse(rd.result,'')}
+   else{if(!THREE.OBJLoader)throw new Error('OBJLoader indisponível');models[o.path]=new THREE.OBJLoader().parse(rd.result)}
+  }catch(err){delete models[o.path];alert('Não foi possível ler o modelo: '+err.message)}
+  full();
+ };
+ if(fbx)rd.readAsArrayBuffer(f);else rd.readAsText(f);
+}
+
+/* ---------- edição de seleção ---------- */
+function delSel(){sels().reverse().forEach(i=>S.items.splice(i,1));ms.clear();sel=-1;full()}
+function selNovos(l){ms.clear();l.forEach(i=>ms.add(i));sel=l.length?l[l.length-1]:-1;list();props();atl();wpanel();upd()}
+function dupl(){
+ const l=sels().map(i=>{const c=cl(S.items[i]);if(c.type==='png'){c.x=n(c.x+.03);c.y=n(c.y+.03)}else{c.x=n(c.x+.15);c.z=n(c.z+.15)}S.items.push(c);return S.items.length-1});
+ if(l.length)selNovos(l);
+}
+function copiar(){const l=sels();if(!l.length)return;CB=l.map(i=>cl(S.items[i]));props()}
+function colar(cx,cz){
+ if(!CB.length)return;
+ const t=CB.filter(o=>o.type!=='png');let dx=0,dz=0;
+ if(t.length){const X=t.map(o=>o.x),Z=t.map(o=>o.z);dx=sg(cx)-sg((Math.min(...X)+Math.max(...X))/2);dz=sg(cz)-sg((Math.min(...Z)+Math.max(...Z))/2)}
+ selNovos(CB.map(o=>{const c=cl(o);if(c.type==='png'){c.x=n(c.x+.03);c.y=n(c.y+.03)}else{c.x=n(c.x+dx);c.z=n(c.z+dz)}S.items.push(c);return S.items.length-1}));
+}
+$('#bcp').onclick=copiar;$('#bpa').onclick=()=>colar(mo[0]||0,mo[1]||1);$('#dup').onclick=dupl;$('#del').onclick=delSel;
+$('#lp').onclick=()=>{if(S.items.length&&!confirm('Apagar todas as peças?'))return;S.items=[];ms.clear();sel=-1;full()};
+$('#gerar').onclick=gen;
+$('#copy').onclick=()=>{gen();const t=$('#code');t.select();try{navigator.clipboard.writeText(t.value)}catch(e){}try{document.execCommand('copy')}catch(e){}};
+$('#sn').onchange=e=>{snap=+e.target.value;paint2d()};
+
+/* ---------- ferramentas ---------- */
+function setTool(t){tool=t;pts=[];document.querySelectorAll('[data-t]').forEach(b=>b.classList.toggle('on',b.dataset.t===t));paint2d()}
+document.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{
+ const t=b.dataset.t;
+ if(viewMode==='b'&&t!=='sel'&&t!=='poligono'){addDefault(t);return}
+ setTool(t);
+});
+document.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>addDefault(b.dataset.add));
+document.querySelectorAll('[data-vw]').forEach(b=>b.onclick=()=>{
+ viewMode=b.dataset.vw;$('#views').className='l '+viewMode;
+ document.querySelectorAll('[data-vw]').forEach(x=>x.classList.toggle('on',x===b));resizeAll();
+});
+function addDefault(t){
+ const o=base(t);o.name=NOMES[t]+' '+(S.items.length+1);if(t!=='png')o.y=num($('#yb').value,-.25);
+ if(t==='poligono')o.pts=[[-.15,-.15],[.15,-.15],[.15,.15],[-.15,.15]];
+ S.items.push(o);ss(S.items.length-1);setTool('sel');full();
+}
+function mk(t,d){
+ const o=base(t);o.name=NOMES[t]+' '+(S.items.length+1);o.y=num($('#yb').value,-.25);
+ const dx=Math.abs(d.x1-d.x0),dz=Math.abs(d.z1-d.z0);
+ if(t==='cubo'){o.x=n((d.x0+d.x1)/2);o.z=n((d.z0+d.z1)/2);if(dx>=.01)o.w=n(dx);if(dz>=.01)o.d=n(dz)}
+ else{o.x=n(d.x0);o.z=n(d.z0);const rr=Math.hypot(dx,dz);if(rr>=.01)o.r=n(rr)}
+ return o;
+}
+function finishPoly(){
+ const p=pts.filter((q,i)=>!i||q[0]!==pts[i-1][0]||q[1]!==pts[i-1][1]);
+ if(p.length>=3){
+  const X=p.map(q=>q[0]),Z=p.map(q=>q[1]),cx=(Math.min(...X)+Math.max(...X))/2,cz=(Math.min(...Z)+Math.max(...Z))/2,o=base('poligono');
+  o.name='Polígono '+(S.items.length+1);o.x=n(cx);o.z=n(cz);o.y=num($('#yb').value,-.25);o.pts=p.map(q=>[n(q[0]-cx),n(q[1]-cz)]);
+  S.items.push(o);ss(S.items.length-1);pts=[];setTool('sel');full();return;
+ }
+ pts=[];paint2d();
+}
+
+/* ---------- desenho 2D ---------- */
+function paint2d(){
+ const r=cv.getBoundingClientRect();if(!r.width||!r.height)return;
+ const dpr=devicePixelRatio||1,W=Math.round(r.width*dpr),H=Math.round(r.height*dpr);
+ if(cv.width!==W||cv.height!==H){cv.width=W;cv.height=H}
+ const x=cv.getContext('2d'),k=V.k;
+ x.setTransform(dpr,0,0,dpr,0,0);x.fillStyle=css('--bg');x.fillRect(0,0,r.width,r.height);
+ x.save();x.translate(r.width/2-V.x*k,r.height/2-V.z*k);x.scale(k,k);
+ const x0=V.x-r.width/2/k,x1=V.x+r.width/2/k,z0=V.z-r.height/2/k,z1=V.z+r.height/2/k;
+ let st=.05;while(st*k<9)st*=2;
+ x.lineWidth=1/k;x.strokeStyle=css('--gr');x.beginPath();
+ for(let a=Math.floor(x0/st)*st;a<=x1;a+=st){x.moveTo(a,z0);x.lineTo(a,z1)}
+ for(let a=Math.floor(z0/st)*st;a<=z1;a+=st){x.moveTo(x0,a);x.lineTo(x1,a)}
+ x.stroke();
+ x.strokeStyle=css('--bd');x.beginPath();
+ for(let a=Math.ceil(x0);a<=x1;a++){x.moveTo(a,z0);x.lineTo(a,z1)}
+ for(let a=Math.ceil(z0);a<=z1;a++){x.moveTo(x0,a);x.lineTo(x1,a)}
+ x.stroke();
+ x.strokeStyle=css('--ac');x.lineWidth=1.5/k;x.beginPath();x.moveTo(x0,0);x.lineTo(x1,0);x.moveTo(0,z0);x.lineTo(0,z1);x.stroke();
+ // campo de visão do jogador
+ x.setLineDash([5/k,4/k]);x.strokeStyle='#e11d48';x.lineWidth=1.2/k;x.beginPath();x.moveTo(-1.15,2);x.lineTo(0,0);x.lineTo(1.15,2);x.stroke();x.setLineDash([]);
+ x.beginPath();x.arc(0,0,.04,0,7);x.fillStyle='#e11d48';x.fill();
+ x.font=(11/k)+'px system-ui';x.textBaseline='middle';
+ S.items.forEach((o,i)=>{
+  if(o.type==='png')return;
+  const s=ms.has(i),dim=!visible(o);pathItem(x,o);
+  x.fillStyle=`hsla(${hue(o)},50%,55%,${dim?.1:.45})`;x.fill();
+  x.strokeStyle=s?css('--ac'):css('--fg');x.lineWidth=(s?3:1)/k;x.stroke();
+  x.fillStyle=css('--fg');x.fillText(o.name,o.x+.02,o.z);
+ });
+ const o=cur1();
+ if(o&&o.type==='poligono'&&ms.size<2){
+  wpts(o).forEach((p,i)=>{x.beginPath();x.rect(p[0]-4/k,p[1]-4/k,8/k,8/k);x.fillStyle=css('--bg');x.fill();x.strokeStyle=css('--ac');x.lineWidth=2/k;x.stroke();x.fillStyle=css('--fg');x.fillText(String(i+1),p[0]+7/k,p[1]-7/k)});
+ }
+ if(drag&&drag.m==='box'){x.setLineDash([4/k,3/k]);x.strokeStyle=css('--ac');x.lineWidth=1.5/k;x.strokeRect(Math.min(drag.x0,drag.x1),Math.min(drag.z0,drag.z1),Math.abs(drag.x1-drag.x0),Math.abs(drag.z1-drag.z0));x.setLineDash([])}
+ if(drag&&drag.m==='new'){const q=mk(tool,drag);pathItem(x,q);x.strokeStyle=css('--ac');x.lineWidth=2/k;x.stroke()}
+ if(pts.length){
+  x.beginPath();pts.forEach((p,i)=>i?x.lineTo(p[0],p[1]):x.moveTo(p[0],p[1]));x.lineTo(sg(mo[0]),sg(mo[1]));x.strokeStyle=css('--ac');x.lineWidth=2/k;x.stroke();
+  pts.forEach(p=>{x.beginPath();x.arc(p[0],p[1],3/k,0,7);x.fillStyle=css('--ac');x.fill()});
+ }
+ x.restore();
+ // mini tela HUD (sprites 2D)
+ const h=hud();x.fillStyle=css('--pn');x.fillRect(h.x,h.y,h.w,h.h);x.strokeStyle=css('--bd');x.lineWidth=1;x.strokeRect(h.x,h.y,h.w,h.h);
+ x.font='10px system-ui';x.textBaseline='top';x.fillStyle=css('--fg');x.globalAlpha=.6;x.fillText('tela 2D',h.x+4,h.y+3);x.globalAlpha=1;
+ S.items.forEach((q,i)=>{
+  if(q.type!=='png')return;
+  const rx=h.x+q.x*h.w,ry=h.y+q.y*h.h,rw=q.w*h.w,rh=q.h*h.h,s=ms.has(i);
+  x.fillStyle=`hsla(${hue(q)},50%,55%,${visible(q)?.45:.12})`;x.fillRect(rx,ry,rw,rh);x.strokeStyle=s?css('--ac'):css('--fg');x.lineWidth=s?2:1;x.strokeRect(rx,ry,rw,rh);
+ });
+}
+
+/* ---------- eventos 2D ---------- */
+cv.oncontextmenu=e=>e.preventDefault();
+cv.onpointerdown=e=>{
+ if(document.activeElement&&document.activeElement!==document.body&&document.activeElement.blur)document.activeElement.blur();
+ cv.setPointerCapture(e.pointerId);
+ if(e.button===1||e.button===2){e.preventDefault();drag={m:'pan',sx:e.clientX,sz:e.clientY,vx:V.x,vz:V.z};return}
+ const[x,z]=wp(e),r=cv.getBoundingClientRect(),px=e.clientX-r.left,py=e.clientY-r.top,add=e.shiftKey||e.ctrlKey||e.metaKey;
+ if(tool==='sel'){
+  const h=hud();
+  if(px>=h.x&&px<=h.x+h.w&&py>=h.y&&py<=h.y+h.h){
+   const u=(px-h.x)/h.w,v=(py-h.y)/h.h;let hi=-1;
+   for(let i=S.items.length-1;i>=0;i--){const q=S.items[i];if(q.type==='png'&&u>=q.x&&u<=q.x+q.w&&v>=q.y&&v<=q.y+q.h){hi=i;break}}
+   if(hi>=0){ss(hi,add);onSel();drag={m:'hud',i:hi,ox:u-S.items[hi].x,oy:v-S.items[hi].y}}
+   else if(!add){ss(-1);onSel()}
+   return;
+  }
+  const so=cur1();
+  if(so&&so.type==='poligono'&&ms.size<2){
+   const ws=wpts(so),tol=9/V.k;
+   for(let i=0;i<ws.length;i++)if(Math.hypot(x-ws[i][0],z-ws[i][1])<tol){drag={m:'vt',i};return}
+  }
+  let hi=-1;for(let i=S.items.length-1;i>=0;i--){if(visible(S.items[i])&&hit(S.items[i],x,z)){hi=i;break}}
+  if(hi<0){if(!add){ss(-1);onSel()}drag={m:'box',x0:x,z0:z,x1:x,z1:z,ad:add}}
+  else{
+   if(add)ss(hi,true);else if(!ms.has(hi))ss(hi);else sel=hi;
+   onSel();
+   if(ms.has(hi)){const p=S.items[sel];drag={m:'mv',sx:x,sz:z,px:p.x,pz:p.z,st:sels().map(i=>({o:S.items[i],x:S.items[i].x,z:S.items[i].z}))}}
+  }
+ }else if(tool==='poligono'){pts.push([sg(x),sg(z)]);paint2d()}
+ else{drag={m:'new',x0:sg(x),z0:sg(z),x1:sg(x),z1:sg(z)}}
+ paint2d();
+};
+cv.onpointermove=e=>{
+ const[x,z]=wp(e);mo=[x,z];
+ if(!drag){if(pts.length)paint2d();return}
+ if(drag.m==='pan'){V.x=drag.vx-(e.clientX-drag.sx)/V.k;V.z=drag.vz-(e.clientY-drag.sz)/V.k}
+ else if(drag.m==='new'){drag.x1=sg(x);drag.z1=sg(z)}
+ else if(drag.m==='box'){drag.x1=x;drag.z1=z}
+ else if(drag.m==='vt'){const o=cur1(),q=toLocal(o,sg(x),sg(z));o.pts[drag.i]=[n(q[0]),n(q[1])];build3();refreshBinds()}
+ else if(drag.m==='hud'){
+  const o=S.items[drag.i],h=hud(),r=cv.getBoundingClientRect(),u=(e.clientX-r.left-h.x)/h.w-drag.ox,v=(e.clientY-r.top-h.y)/h.h-drag.oy,q=a=>snap?Math.round(a*100)/100:a;
+  o.x=n(clamp(q(u),-1,1));o.y=n(clamp(q(v),-1,1));build3();refreshBinds();
+ }
+ else if(drag.m==='mv'){
+  let dx=x-drag.sx,dz=z-drag.sz;
+  if(snap){dx=sg(drag.px+dx)-drag.px;dz=sg(drag.pz+dz)-drag.pz}
+  drag.st.forEach(s=>{if(s.o.type==='png')return;s.o.x=n(s.x+dx);s.o.z=n(s.z+dz)});
+  build3();refreshBinds();
+ }
+ paint2d();
+};
+cv.onpointerup=e=>{
+ const d=drag;drag=null;
+ if(d){
+  if(d.m==='new'){S.items.push(mk(tool,d));ss(S.items.length-1);setTool('sel');full();return}
+  if(d.m==='box'){
+   const xa=Math.min(d.x0,d.x1),xb=Math.max(d.x0,d.x1),za=Math.min(d.z0,d.z1),zb=Math.max(d.z0,d.z1);
+   if(xb-xa>3/V.k||zb-za>3/V.k){
+    if(!d.ad)ms.clear();
+    S.items.forEach((o,i)=>{if(o.type!=='png'&&visible(o)&&o.x>=xa&&o.x<=xb&&o.z>=za&&o.z<=zb)ms.add(i)});
+    sel=ms.size?[...ms].pop():-1;onSel();
+   }
+  }
+  if(d.m==='mv'||d.m==='vt'||d.m==='hud'){save();gen()}
+  if(d.m==='vt')props();
+ }
+ paint2d();
+};
+cv.onpointercancel=()=>{drag=null;paint2d()};
+cv.ondblclick=e=>{
+ if(tool==='poligono'){pts.pop();finishPoly();return}
+ const o=cur1();if(tool!=='sel'||!o||o.type!=='poligono')return;
+ const[x,z]=wp(e),ws=wpts(o),tol=9/V.k;
+ for(let i=0;i<ws.length;i++)if(Math.hypot(x-ws[i][0],z-ws[i][1])<tol){if(o.pts.length>3){o.pts.splice(i,1);props();upd()}return}
+ for(let i=0;i<ws.length;i++){
+  const a=ws[i],b=ws[(i+1)%ws.length],dx=b[0]-a[0],dz=b[1]-a[1],L=dx*dx+dz*dz||1,u=clamp(((x-a[0])*dx+(z-a[1])*dz)/L,0,1);
+  if(Math.hypot(x-a[0]-u*dx,z-a[1]-u*dz)<7/V.k){const q=toLocal(o,sg(x),sg(z));o.pts.splice(i+1,0,[n(q[0]),n(q[1])]);props();upd();return}
+ }
+};
+cv.addEventListener('wheel',e=>{e.preventDefault();const b=wp(e);V.k=clamp(V.k*(e.deltaY<0?1.15:.87),20,900);const a=wp(e);V.x+=b[0]-a[0];V.z+=b[1]-a[1];paint2d()},{passive:false});
+
+window.addEventListener('keydown',e=>{
+ const tg=e.target&&e.target.tagName;
+ if(tg==='INPUT'||tg==='TEXTAREA'||tg==='SELECT')return;
+ if(e.key==='Enter'&&tool==='poligono'){finishPoly();return}
+ if(e.key==='Escape'){pts=[];drag=null;if(tool!=='sel')setTool('sel');else paint2d();return}
+ if((e.ctrlKey||e.metaKey)&&!e.shiftKey){
+  const k=e.key.toLowerCase();
+  if(k==='c'){e.preventDefault();copiar();return}
+  if(k==='v'){e.preventDefault();colar(mo[0],mo[1]);return}
+  if(k==='d'){e.preventDefault();dupl();return}
+  if(k==='a'){e.preventDefault();ms.clear();S.items.forEach((o,i)=>ms.add(i));sel=S.items.length-1;onSel();return}
+ }
+ if((e.key==='Delete'||e.key==='Backspace')&&ms.size){e.preventDefault();delSel();return}
+ if(e.key.startsWith('Arrow')&&ms.size){
+  e.preventDefault();const s=snap||.01,dx=((e.key==='ArrowRight')-(e.key==='ArrowLeft'))*s,dz=((e.key==='ArrowDown')-(e.key==='ArrowUp'))*s;
+  sels().forEach(i=>{const o=S.items[i];if(o.type==='png'){o.x=n(o.x+dx);o.y=n(o.y+dz)}else{o.x=n(o.x+dx);o.z=n(o.z+dz)}});upd();
+ }
+});
+
+/* ---------- 3D ---------- */
+let R,Sc,Ca,root,disp=[],helpers=[],O={yaw:.45,pit:.3,d:4},lastSize=[0,0];
+function tileTex(ai,c,l){
+ const a=S.atlases[ai];if(!a||!a.img)return null;
+ const fw=tw(a),fh=th(a),key=[ai,c,l,fw,fh].join();
+ if(!tx[key]){
+  const can=document.createElement('canvas');can.width=fw;can.height=fh;can.getContext('2d').drawImage(a.img,c*fw,l*fh,fw,fh,0,0,fw,fh);
+  const t=new THREE.CanvasTexture(can);t.magFilter=t.minFilter=THREE.NearestFilter;t.encoding=THREE.sRGBEncoding;tx[key]=t;
+ }
+ return tx[key];
+}
+function matFor(o,face){
+ const t=face&&o.faceTiles&&o.faceTiles[face],c=t?t.c:o.c,l=t?t.l:o.l,tex=o.atlas>=0?tileTex(o.atlas,c,l):null;
+ const m=new THREE.MeshStandardMaterial(tex?{map:tex,roughness:.85,metalness:0,side:THREE.DoubleSide}:{color:new THREE.Color().setHSL(hue(o)/360,.45,.55),roughness:.85,metalness:0,side:THREE.DoubleSide});
+ disp.push(m);return m;
+}
+const mg=g=>{disp.push(g);return g};
+function meshFor(o){
+ const P=v=>Math.max(.001,Math.abs(num(v,.1)));
+ if(o.type==='cubo'){
+  const fs=['direita','esquerda','cima','baixo','tras','frente'];
+  return new THREE.Mesh(mg(new THREE.BoxGeometry(P(o.w),P(o.h),P(o.d))),fs.map(f=>matFor(o,f)));
+ }
+ if(o.type==='esfera')return new THREE.Mesh(mg(new THREE.SphereGeometry(P(o.r),20,16)),matFor(o));
+ if(o.type==='cone')return new THREE.Mesh(mg(new THREE.ConeGeometry(P(o.r),P(o.h),16)),matFor(o));
+ if(o.type==='cilindro')return new THREE.Mesh(mg(new THREE.CylinderGeometry(P(o.r),P(o.r),P(o.h),16)),matFor(o));
+ if(o.type==='poligono'){
+  if(o.pts.length<3)return null;
+  const g=new THREE.ExtrudeGeometry(new THREE.Shape(o.pts.map(p=>new THREE.Vector2(p[0],-p[1]))),{depth:P(o.height),bevelEnabled:false});g.rotateX(-Math.PI/2);
+  return new THREE.Mesh(mg(g),matFor(o));
+ }
+ if(o.type==='modelo'&&models[o.path]){
+  const m=models[o.path].clone(true);m.scale.setScalar(num(o.scale,1)||1);return m;
+ }
+ const ph=new THREE.Mesh(mg(new THREE.BoxGeometry(.22,.14,.32)),(()=>{const m=new THREE.MeshStandardMaterial({color:0x9da9b5});disp.push(m);return m})());return ph;
+}
+function build3(){
+ if(!R)return;
+ helpers.forEach(h=>{Sc.remove(h);h.geometry.dispose();h.material.dispose()});helpers=[];
+ while(root.children.length)root.remove(root.children[0]);
+ disp.forEach(d=>d.dispose());disp=[];
+ const c=$('#canvas3d'),asp=(c.clientWidth||4)/(c.clientHeight||3),hh=2*Math.tan(30*D)*.8,ww=hh*asp,selM=[];
+ S.items.forEach((o,i)=>{
+  if(!visible(o))return;
+  let me;
+  if(o.type==='png'){
+   const tex=o.atlas>=0?tileTex(o.atlas,o.c,o.l):null;if(!tex)return;
+   const m=new THREE.MeshBasicMaterial({map:tex,transparent:true,depthWrite:false,side:THREE.DoubleSide});disp.push(m);
+   me=new THREE.Mesh(mg(new THREE.PlaneGeometry(Math.max(.001,o.w*ww),Math.max(.001,o.h*hh))),m);
+   me.position.set((o.x+o.w/2-.5)*ww,(.5-o.y-o.h/2)*hh,.8);
+  }else{
+   me=meshFor(o);if(!me)return;
+   me.position.set(num(o.x),num(o.y),num(o.z));
+   me.rotation.order='ZYX';me.rotation.set(num(o.rx)*D,num(o.ry)*D,num(o.rz)*D);
+  }
+  me.userData.item=i;me.traverse(q=>{q.userData.item=i});root.add(me);
+  if(ms.has(i))selM.push(me);
+ });
+ root.updateMatrixWorld(true);
+ selM.forEach(m=>{const h=new THREE.BoxHelper(m,0xffcc00);Sc.add(h);helpers.push(h)});
+ render3();
+}
+function render3(){
+ if(!R)return;
+ const c=$('#canvas3d'),w=c.clientWidth,h=c.clientHeight;if(!w||!h)return;
+ if(lastSize[0]!==w||lastSize[1]!==h){R.setSize(w,h,false);lastSize=[w,h]}
+ Ca.aspect=w/h;Ca.updateProjectionMatrix();
+ const cp=Math.cos(O.pit);
+ Ca.position.set(O.d*Math.sin(O.yaw)*cp,O.d*Math.sin(O.pit),-1+O.d*Math.cos(O.yaw)*cp);Ca.lookAt(0,0,-1);
+ R.render(Sc,Ca);
+}
+function init3(){
+ if(!window.THREE){$('#p3').append('Falha ao carregar three.js (sem internet?).');return}
+ const el=$('#canvas3d');
+ R=new THREE.WebGLRenderer({canvas:el,antialias:true});R.setPixelRatio(Math.min(devicePixelRatio||1,2));R.outputEncoding=THREE.sRGBEncoding;R.setClearColor(0x20242a);
+ Sc=new THREE.Scene();Sc.add(new THREE.HemisphereLight(0xffffff,0x52606c,1.2));
+ const dl=new THREE.DirectionalLight(0xffffff,1);dl.position.set(-2,4,3);Sc.add(dl);
+ const gr=new THREE.GridHelper(8,32,0x68727d,0x3b4249);gr.position.set(0,-.65,-1);Sc.add(gr);
+ Sc.add(new THREE.ArrowHelper(new THREE.Vector3(0,0,-1),new THREE.Vector3(0,0,0),.6,0xe11d48));
+ root=new THREE.Group();root.scale.z=-1;Sc.add(root); // eixo Z do jogo (frente = +Z) espelhado para a vista
+ Ca=new THREE.PerspectiveCamera(55,1,.02,100);
+ const ray=new THREE.Raycaster();let down=null,last=[0,0];
+ el.onpointerdown=e=>{down=[e.clientX,e.clientY];last=[e.clientX,e.clientY];el.setPointerCapture(e.pointerId)};
+ el.onpointermove=e=>{if(!down)return;O.yaw-=(e.clientX-last[0])*.008;O.pit=clamp(O.pit+(e.clientY-last[1])*.008,-1.4,1.4);last=[e.clientX,e.clientY];render3()};
+ el.onpointerup=e=>{
+  if(!down)return;const moved=Math.hypot(e.clientX-down[0],e.clientY-down[1]);down=null;
+  if(moved<4){
+   const r=el.getBoundingClientRect();
+   ray.setFromCamera(new THREE.Vector2(((e.clientX-r.left)/r.width)*2-1,-((e.clientY-r.top)/r.height)*2+1),Ca);
+   const h=ray.intersectObjects(root.children,true)[0];let q=h&&h.object;
+   while(q&&q.userData.item==null)q=q.parent;
+   if(q)ss(q.userData.item,e.shiftKey||e.ctrlKey||e.metaKey);else if(!(e.shiftKey||e.ctrlKey||e.metaKey))ss(-1);
+   onSel();
+  }
+ };
+ el.onpointercancel=()=>{down=null};
+ el.addEventListener('wheel',e=>{e.preventDefault();O.d=clamp(O.d*(e.deltaY>0?1.1:.9),1,12);render3()},{passive:false});
+}
+let rz=0;
+function resizeAll(){cancelAnimationFrame(rz);rz=requestAnimationFrame(()=>{paint2d();build3()})}
+window.addEventListener('resize',resizeAll);
+if(window.ResizeObserver){const ro=new ResizeObserver(resizeAll);ro.observe($('#p2'));ro.observe($('#p3'))}
+
+/* ---------- geração de Lua ---------- */
+function gen(){
+ const L=['-- Gerado pelo Editor de Formas 3D BirdEngine.','','local mao = assert(mao.novo(), "não foi possível criar a mão FPS")'];
+ S.atlases.forEach((a,i)=>L.push(`local atlas${i+1} = assert(fb.atlas(), "atlas da mão")`,`atlas${i+1}:carregar(${lua(a.path)}, ${tw(a)}, ${th(a)})`));
+ const af=o=>o.atlas>=0&&S.atlases[o.atlas]?`atlas${o.atlas+1}`:'nil';
+ S.items.forEach((o,i)=>{
+  const id=i+1,a=af(o),g=clamp(Math.floor(num(o.group,1)),0,31);
+  if(o.type==='png'){
+   if(o.atlas<0||!S.atlases[o.atlas]){L.push(`-- Escolha o PNG da peça ${id} (${o.name}).`);return}
+   L.push(`mao:adicionar2d(${a}, ${Math.floor(num(o.c))}, ${Math.floor(num(o.l))}, ${fmt(o.x)}, ${fmt(o.y)}, ${fmt(o.w)}, ${fmt(o.h)}, ${g})`);return;
+  }
+  let ctor;
+  if(o.type==='cubo')ctor=`obj3d.cubo(${a}, 0, 0, 0, ${fmt(o.w)}, ${fmt(o.h)}, ${fmt(o.d)}, 1, 1, false)`;
+  else if(o.type==='esfera')ctor=`obj3d.esfera(${a}, 0, 0, 0, ${fmt(o.r)}, 16, 12, 1, 1, false)`;
+  else if(o.type==='cone')ctor=`obj3d.cone(${a}, 0, 0, 0, ${fmt(o.r)}, ${fmt(o.h)}, 16, 1, 1, false)`;
+  else if(o.type==='cilindro')ctor=`obj3d.cilindro(${a}, 0, 0, 0, ${fmt(o.r)}, ${fmt(o.h)}, 16, 1, 1, false)`;
+  else if(o.type==='poligono'){
+   if(o.pts.length<3){L.push(`-- O polígono ${id} precisa de pelo menos 3 pontos.`);return}
+   ctor=`obj3d.poligono(${a}, 0, 0, 0, {${o.pts.map(p=>`{${fmt(p[0])}, ${fmt(p[1])}}`).join(', ')}}, ${fmt(o.height)}, 1, 1, false)`;
+  }else{
+   if(!o.path){L.push(`-- Escolha o arquivo do modelo ${id} (${o.name}).`);return}
+   ctor=`obj3d.carregar(${a}, ${lua(o.path)}, 0, 0, 0, ${fmt(o.scale)})`;
+  }
+  L.push(`local peca${id} = assert(${ctor}, "falha ao criar peça ${id}")`);
+  if(o.atlas>=0)L.push(`peca${id}:tile(${Math.floor(num(o.c))}, ${Math.floor(num(o.l))})`);
+  if(o.type==='cubo')for(const f of ['frente','tras','esquerda','direita','cima','baixo']){const v=o.faceTiles&&o.faceTiles[f];if(v)L.push(`peca${id}:tile_${f}(${Math.floor(num(v.c))}, ${Math.floor(num(v.l))})`)}
+  L.push(`mao:adicionar3d(peca${id}, ${fmt(o.x)}, ${fmt(o.y)}, ${fmt(o.z)}, ${fmt(o.rx)}, ${fmt(o.ry)}, ${fmt(o.rz)}, ${g})`);
+ });
+ const used=[...new Set(S.items.map(o=>clamp(Math.floor(num(o.group,1)),0,31)).filter(g=>g>=1))].sort((a,b)=>a-b);
+ used.forEach(g=>{const w=S.weapons[g]||defW();L.push(`mao:arma(${g}, mao.${w.type==='CURTA'?'CURTA':'LONGA'}, ${fmt(w.damage)}, ${fmt(w.range)}, ${fmt(w.interval)}, ${Math.floor(num(w.mag))}, ${Math.floor(num(w.reserve))}, ${fmt(w.recoil)})`)});
+ L.push(`mao:selecionar(${used[0]||1})`,'','-- No loop de atualização: mao:atualizar(dt, cam)','-- Depois de cam:desenhar(tela, zb, objetos): mao:desenhar(cam, tela, zb)','-- Ataque: local disparou, alvo, dano, distancia, pente, reserva = mao:usar(cam, objetos)','','return mao');
+ $('#code').value=L.join('\n');
+}
+
+/* ---------- início ---------- */
+S.atlases.forEach(a=>{if(a.src){const im=new Image();im.onload=()=>{a.img=im;tx={};atl();build3();paint2d()};im.src=a.src}});
+init3();full();
+</script>
+</body>
+</html>
